@@ -12,25 +12,29 @@ import argparse
 import flux
 import flux.job
 import json
+import time
 from flux.constants import FLUX_NODEID_ANY
 
 class PingData:
-    def __init__(self, topic_string, total_to_send, node=FLUX_NODEID_ANY):
+    def __init__(self, topic_string, total_to_send, pad="", node=FLUX_NODEID_ANY):
         self.topic_string = str(topic_string) + ".ping"
         self.total_to_send = int(total_to_send)
         self.node = node
+        self.pad = pad
         self.been_sent = int(0)
     
-    def timer_cb(self, fh, _t, msg, args):
-        if self.total_to_send >= self.been_sent:
-            return 0
-        fut = fh.rpc(self.topic_string, payload=msg, nodeid=self.node)
-        fut.then(self.recv_response_ping(fh, fut)) ## receive the response here
+    def timer_cb(self, handle, watcher, revents, args):
+        if self.total_to_send <= self.been_sent:
+            watcher.stop()
+            handle.reactor_stop()
+        # message = str(str(handle.get_rank()) + "!" + self.topic_string + "pad=" + str(len(self.pad.encode("utf-8"))) + " seq=" + str(self.been_sent) + " time=")
+        message = json.dumps({"seq": self.been_sent, "pad": self.pad, "sent_time": time.time_ns()})
+        fut = handle.rpc(self.topic_string, payload=message, nodeid=self.node)
+        fut.then(self.receive_response)
         self.been_sent += 1
     
-    def recv_response_ping(self, fh, future):
-        pass
-        
+    def receive_response(self, RPC):
+        print("hello my future went through")
 
 def main():
     parser = argparse.ArgumentParser(
