@@ -344,6 +344,7 @@ fi
 # Sanitize PMI_* environment for all tests. This allows commands like
 #  `flux broker` in tests to boot as singleton even when run under a
 #  job of an existing RM.
+env | grep ^PMI
 for var in $(env | grep ^PMI); do unset ${var%%=*}; done
 for var in $(env | grep ^SLURM); do unset ${var%%=*}; done
 
