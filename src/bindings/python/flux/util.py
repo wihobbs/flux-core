@@ -162,6 +162,11 @@ def help_formatter(argwidth=40, raw_description=False):
             default = action.dest.upper()
             args_string = self._format_args(action, default)
             return optstring + "=" + args_string
+        
+        def _fill_text(self, text, width, indent):
+            if text.startswith('RAW|'):
+                return text[4:]
+            return argparse.HelpFormatter._fill_text(self, text, width, indent)
 
     class FluxRawDescriptionHelpFormatter(
         FluxHelpFormatter, argparse.RawDescriptionHelpFormatter
