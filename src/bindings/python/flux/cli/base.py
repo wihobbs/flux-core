@@ -746,6 +746,7 @@ class MiniCmd:
     MiniCmd is the base class for all flux submission subcommands
     """
 
+
     def __init__(self, prog, usage=None, description=None, exclude_io=False):
         self.flux_handle = None
         self.exitcode = 0
@@ -756,7 +757,7 @@ class MiniCmd:
     @staticmethod
     def create_parser(
         prog, usage=None, description=None, exclude_io=False, add_help=True
-    ):
+        ):
         """
         Create default parser with args for submission subcommands
         Args:
@@ -768,11 +769,16 @@ class MiniCmd:
         """
         if usage is None:
             usage = f"{prog} [OPTIONS...] COMMAND [ARGS...]"
+        shell_help = """
+        
+        """
+
         parser = argparse.ArgumentParser(
             prog=prog,
             usage=usage,
             description=description,
             formatter_class=flux.util.help_formatter(),
+            epilog="""RAW|Hello can you see this\n this is my message""",
         )
         parser.add_argument(
             "-B",
