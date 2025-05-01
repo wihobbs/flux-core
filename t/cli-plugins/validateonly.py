@@ -3,8 +3,31 @@ from typing import Mapping
 from flux.cli.plugin import CLIPlugin
 
 
-class ValidateShellSignalOpt(CLIPlugin):
+class ValidateShellVerboseOpt(CLIPlugin):
+    name = "shell.options.verbose"
 
+    def validate(self, jobspec):
+        try:
+            verbosity = jobspec.attributes["system"]["shell"]["options"]["verbose"]
+            if not verbosity.isdigit():
+                raise ValueError(f"{self.name}: expected integer, got {verbosity}")
+        except KeyError:
+            return
+
+
+class ValidateShellVerboseOpt(CLIPlugin):
+    name = "shell.options.verbose"
+
+    def validate(self, jobspec):
+        try:
+            verbosity = jobspec.attributes["system"]["shell"]["options"]["verbose"]
+            if not verbosity.isdigit():
+                raise ValueError(f"{self.name}: expected integer, got {verbosity}")
+        except KeyError:
+            return
+
+
+class ValidateShellSignalOpt(CLIPlugin):
     name = "shell.options.signal"
 
     def validate(self, jobspec):
