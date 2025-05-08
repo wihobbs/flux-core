@@ -33,7 +33,8 @@ class JobWaitFuture(Future):
 
 
 def wait_async(flux_handle, jobid=lib.FLUX_JOBID_ANY):
-    """Wait for a job to complete, asynchronously
+    """flux.job.wait_async(flux_handle, jobid=lib.FLUX_JOBID_ANY)
+    Wait for a job to complete, asynchronously
 
     Submit a request to wait for job completion.  This method returns
     immediately with a Flux Future, which can be used to process
