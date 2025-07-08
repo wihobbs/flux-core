@@ -16,25 +16,25 @@ test_expect_success 'flux-alloc: a job that does not provide plugins can run' '
   flux alloc -N1 hostname
 '
 test_expect_success 'flux-alloc: job that calls -P has jobspec set properly' '
-  flux alloc -P matchpolicy=firstnodex -N1 --dry-run > jobspec1.json &&
+  flux alloc --matchpolicy=firstnodex -N1 --dry-run > jobspec1.json &&
   test $(jq -r .attributes.system.fluxion_match_policy jobspec1.json) = "firstnodex"
 '
 test_expect_success 'flux-alloc: job with invalid key to -P is rejected' '
-  test_must_fail flux alloc -P matchpolicy=junkpolicy -N1 echo hello 2> err.out &&
+  test_must_fail flux alloc --matchpolicy=junkpolicy -N1 echo hello 2> err.out &&
   grep "flux-alloc: ERROR: Invalid option" err.out
 '
 test_expect_success 'flux-alloc: job with preinit has config set accordingly' '
-  flux alloc -P gpumode=TPX -N1 flux config get > config.json && 
+  flux alloc --gpumode=TPX -N1 flux config get > config.json && 
   test $(jq -r .resource.rediscover config.json) = "true"
 '
 test_expect_success 'flux-alloc: multiple valid plugin options are accepted' '
-	flux alloc -N1 -P gpumode=TPX -P matchpolicy=firstnodex \
+	flux alloc -N1 --gpumode=TPX --matchpolicy=firstnodex \
 		flux config get > config2.json &&
 	test $(jq -r .resource.rediscover config2.json) = "true" && 
 	test $(jq -r ".[\"sched-fluxion-resource\"][\"match-policy\"] == \"firstnodex\"" config2.json) = "true"
 '
 test_expect_success 'flux-alloc: job with invalid plugin key is rejected outright' '
-  test_must_fail flux alloc -N1 -P junk -P notthis=one -N 1 echo hello 2> out2.err &&
+  test_must_fail flux alloc -N1 --junk --notthis=one -N 1 echo hello 2> out2.err &&
   grep "flux-alloc: ERROR: Unsupported option" out2.err
 '
 test_expect_success 'flux-run: validate-only plugins are properly validated' '
