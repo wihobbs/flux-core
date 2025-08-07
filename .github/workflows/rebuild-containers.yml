@@ -1,6 +1,8 @@
 name: Rebuild testenv Docker containers
-
-on: 
+on:
+  push:
+    branches:
+      - docker-testenv
   workflow_dispatch:
     inputs:
       push_to_docker:
@@ -14,4 +16,6 @@ on:
 jobs:
   rebuild:
     runs-on: ubuntu-latest
-    run: docker buildx build --platform=linux/arm64,linux/amd64 --tag wihobbs/testenv:noble -f ./src/test/docker/noble/Dockerfile .
+    steps: 
+      - name: Build
+        run: docker buildx build --platform=linux/arm64,linux/amd64 --tag wihobbs/testenv:noble -f ./src/test/docker/noble/Dockerfile .
