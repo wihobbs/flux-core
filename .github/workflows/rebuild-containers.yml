@@ -7,15 +7,12 @@ on:
     inputs:
       push_to_docker:
         description: 'Specify whether you want this rebuild to be pushed to DockerHub'
-	default: 'no'
-	type: choice
-	options:
-	  - yes
-	  - no
+        default: false
+        type: boolean
 
 jobs:
   rebuild:
     runs-on: ubuntu-latest
-    steps: 
+    steps:
       - name: Build
         run: docker buildx build --platform=linux/arm64,linux/amd64 --tag wihobbs/testenv:noble -f ./src/test/docker/noble/Dockerfile .
