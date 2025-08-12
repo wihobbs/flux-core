@@ -1,7 +1,7 @@
 name: image-build
 
 on:
-  workflow_dispatch:
+  push
 
 env:
   USER: ${{secrets.DOCKER_USERNAME}}
