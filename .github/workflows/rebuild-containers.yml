@@ -1,44 +1,35 @@
-name: image-build
+name: Rebuild Noble Multi-Arch Container
 
 on:
   push
 
-env:
-  USER: ${{secrets.DOCKER_USERNAME}}
-
 jobs:
-  docker_build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: amd64
-          - os: ubuntu-22.04-arm
-            arch: arm64
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{env.USER}}
-          password: ${{secrets.DOCKER_PAT}}
-      - name: Build and push
-        run: |
-            docker build --tag ${{env.USER}}/docker-uname:${{matrix.arch}} src/test/docker/noble/.
-            docker push ${{env.USER}}/docker-uname:${{matrix.arch}}
+  build-noble-multiarch:
+    name: Build Multi-Arch Noble Container
+    runs-on: ubuntu-22.04-arm
 
-  docker_manifest:
-    needs: docker_build
-    runs-on: ubuntu-latest
     steps:
-      - name: Log in to Docker Hub
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+
+      - name: Log in to DockerHub
         uses: docker/login-action@v3
         with:
-          username: ${{secrets.DOCKER_USERNAME}}
-          password: ${{secrets.DOCKER_PASSWORD}}
-      - name: Create and push manifest
-        run: |
-            docker manifest create wihobbs/docker-uname wihobbs/docker-uname:amd64 wihobbs/docker-uname:arm64
-            docker manifest push wihobbs/docker-uname
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Multi-Arch Noble Image
+        uses: docker/build-push-action@v5
+        with:
+          file: src/test/docker/noble/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: wihobbs/testenv:noble
