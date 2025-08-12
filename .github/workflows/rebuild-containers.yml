@@ -29,7 +29,6 @@ jobs:
       - name: Build and Push Multi-Arch Noble Image
         uses: docker/build-push-action@v5
         with:
-          context: src/test/docker/noble
           file: src/test/docker/noble/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
