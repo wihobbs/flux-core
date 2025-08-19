@@ -8,7 +8,6 @@
 #
 # option Defaults:
 PROJECT=flux-core
-BASE_DOCKER_REPO=fluxrm/testenv
 
 WORKDIR=/usr/src
 IMAGE=bookworm
@@ -25,7 +24,7 @@ declare -r prog=${0##*/}
 die() { echo -e "$prog: $@"; exit 1; }
 
 #
-declare -r long_opts="help,quiet,interactive,image:,flux-security-version:,jobs:,no-cache,no-home,distcheck,tag:,build-directory:,install-only,no-poison,recheck,unit-test-only,quick-check,inception,platform:,workdir:,system"
+declare -r long_opts="docker-user:,help,quiet,interactive,image:,flux-security-version:,jobs:,no-cache,no-home,distcheck,tag:,build-directory:,install-only,no-poison,recheck,unit-test-only,quick-check,inception,platform:,workdir:,system"
 declare -r short_opts="hqIdi:S:j:t:D:Prup:"
 declare usage="
 Usage: $prog [OPTIONS] -- [CONFIGURE_ARGS...]\n\
@@ -41,6 +40,7 @@ Options:\n\
      --install-only            Skip make check, only make install\n\
      --inception               Run tests as flux jobs\n\
      --system                  Run under system instance\n\
+     --docker-user             Pull containers from user other than fluxrm\n\
  -q, --quiet                   Add --quiet to docker-build\n\
  -t, --tag=TAG                 If checks succeed, tag image as NAME\n\
  -i, --image=NAME              Use base docker image NAME (default=$IMAGE)\n\
@@ -80,6 +80,7 @@ while true; do
       -q|--quiet)                  QUIET="--quiet";            shift   ;;
       -i|--image)                  IMAGE="$2";                 shift 2 ;;
       -p|--platform)               PLATFORM="--platform=$2";   shift 2 ;;
+      --docker-user)               BASE_DOCKER_USER="$2";      shift 2 ;;
       -S|--flux-security-version)  FLUX_SECURITY_VERSION="$2"; shift 2 ;;
       -j|--jobs)                   JOBS="$2";                  shift 2 ;;
       -I|--interactive)            INTERACTIVE="/bin/bash";    shift   ;;
@@ -101,6 +102,12 @@ while true; do
       *)                           die "Invalid option '$1'\n$usage"   ;;
     esac
 done
+
+if test ${BASE_DOCKER_USER}; then
+    BASE_DOCKER_REPO=${BASE_DOCKER_USER}/testenv
+else
+    BASE_DOCKER_REPO=fluxrm/testenv
+fi
 
 TOP=$(git rev-parse --show-toplevel 2>&1) \
     || die "not inside $PROJECT git repository!"
