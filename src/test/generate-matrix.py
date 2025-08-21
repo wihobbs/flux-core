@@ -275,6 +275,28 @@ matrix.add_build(
     args="--with-flux-security",
     command_args="--workdir=/usr/src/" + "workdir/" * 15,
 )
+# fedora41: clang-20
+matrix.add_build(
+    name="fedora42 - clang-20",
+    image="fedora42",
+    env=dict(
+        CC="clang-20",
+        CXX="clang++-20",
+        CFLAGS="-O2 -gdwarf-4",
+        chain_lint="t",
+    ),
+    timeout_minutes=90,
+    args="--with-flux-security",
+    command_args="--docker-user=wihobbs --workdir=/usr/src/" + "workdir/" * 15,
+)
+# fedora42: gcc-14
+matrix.add_build(
+    name="fedora42 - gcc",
+    image="fedora42",
+    timeout_minutes=90,
+    args="--with-flux-security",
+    command_args="--docker-user=wihobbs --workdir=/usr/src/" + "workdir/" * 15,
+)
 
 # coverage
 matrix.add_build(
