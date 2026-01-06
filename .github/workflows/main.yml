@@ -156,12 +156,12 @@ jobs:
           - src/test/docker/**/Dockerfile
   
   rebuild-testenv-container:
-  needs: rebuild-testenv
-  if: ${{ steps.filter.outputs.testenv }}
-  runs-on: ubuntu-latest
-  steps:
-  - name: rebuild testenv containers
-    run: echo "detected changes"
+    needs: rebuild-testenv
+    if: ${{ steps.filter.outputs.testenv }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: rebuild testenv containers
+      run: echo "detected changes"
 
   generate-matrix:
     # https://stackoverflow.com/questions/59977364
