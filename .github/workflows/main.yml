@@ -151,9 +151,9 @@ jobs:
         base: ${{ github.event_name == 'merge_group' && github.event.merge_group.base_ref || '' }}
         # For merge group events, use the merge group head ref
         ref: ${{ github.event_name == 'merge_group' && github.event.merge_group.head_sha || github.ref }}
-      filters: | 
-        testenv:
-        - src/test/docker/**/Dockerfile
+        filters: | 
+          testenv:
+          - src/test/docker/**/Dockerfile
   
 #  rebuild-testenv-container:
 #  needs: rebuild-testenv
