@@ -157,7 +157,7 @@ jobs:
   
   rebuild-testenv-container:
     needs: rebuild-testenv
-    if: ${{ needs.rebuild-testenv.outputs.testenv-changed }}
+    if: ${{ needs.rebuild-testenv.outputs.testenv-changed == 'true' }}
     runs-on: ubuntu-latest
     steps:
     - name: rebuild testenv containers
