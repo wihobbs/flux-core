@@ -136,7 +136,7 @@ jobs:
 
   rebuild-testenv:
     name: Check for changes to testenv docker containers
-    runs-on: alpine
+    runs-on: ubuntu-latest
     outputs:
       testenv-changed: ${{ steps.filter.outputs.testenv }}
     steps:
@@ -155,19 +155,13 @@ jobs:
           testenv:
           - src/test/docker/**/Dockerfile
   
-#  rebuild-testenv-container:
-#  needs: rebuild-testenv
-#  if: ${{ steps.filter.outputs.testenv }}
-#  runs-on: ubuntu-latest
-#    env:
-#      DOCKER_REPO: fluxrm/testenv
-#      DOCKER_USERNAME: travisflux
-#      DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_TRAVISFLUX_TOKEN }}
-#      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#  steps:
-#  - name: rebuild testenv containers
-#    uses: docker/setup-buildx-action@v3
-    
+  rebuild-testenv-container:
+  needs: rebuild-testenv
+  if: ${{ steps.filter.outputs.testenv }}
+  runs-on: ubuntu-latest
+  steps:
+  - name: rebuild testenv containers
+    run: echo "detected changes"
 
   generate-matrix:
     # https://stackoverflow.com/questions/59977364
