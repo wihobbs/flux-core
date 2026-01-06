@@ -134,6 +134,41 @@ jobs:
       if: ${{ !cancelled() && runner.debug }}
       uses: mxschmitt/action-tmate@v3
 
+  rebuild-testenv:
+    name: Check for changes to testenv docker containers
+    runs-on: alpine
+    outputs:
+      testenv-changed: ${{ steps.filter.outputs.testenv }}
+    steps:
+    - uses: actions/checkout@v4
+      if: ${{ github.event_name == 'push' || github.event_name == 'merge_group' }}
+      with: 
+        fetch-depth: 0
+    - uses: dorny/paths-filter@v3.0.2
+      id: filter
+      with: 
+        # For merge group events, compare against the target branch (main)
+        base: ${{ github.event_name == 'merge_group' && github.event.merge_group.base_ref || '' }}
+        # For merge group events, use the merge group head ref
+        ref: ${{ github.event_name == 'merge_group' && github.event.merge_group.head_sha || github.ref }}
+      filters: | 
+        core: 
+	- src/test/docker/**/Dockerfile
+  
+#  rebuild-testenv-container:
+#  needs: rebuild-testenv
+#  if: ${{ steps.filter.outputs.testenv }}
+#  runs-on: ubuntu-latest
+#    env:
+#      DOCKER_REPO: fluxrm/testenv
+#      DOCKER_USERNAME: travisflux
+#      DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_TRAVISFLUX_TOKEN }}
+#      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#  steps:
+#  - name: rebuild testenv containers
+#    uses: docker/setup-buildx-action@v3
+    
+
   generate-matrix:
     # https://stackoverflow.com/questions/59977364
     name: Generate build matrix
