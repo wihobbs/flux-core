@@ -8,6 +8,7 @@ RUN apt-get update \
 # Utilities
  && apt-get -qq install -y --no-install-recommends \
         locales \
+	locales-all \
         ca-certificates \
         wget \
         man \
