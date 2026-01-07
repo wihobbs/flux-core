@@ -86,7 +86,7 @@ RUN apt-get update \
     apt-get -qq purge -y python3-pip \
  && apt-get -qq autoremove -y
 
-RUN locale-gen en_US.UTF-8
+# RUN locale-gen en_US.UTF-8
 
 # NOTE: luaposix installed by rocks due to Ubuntu bug: #1752082 https://bugs.launchpad.net/ubuntu/+source/lua-posix/+bug/1752082
 RUN luarocks install luaposix
