@@ -83,7 +83,7 @@ jobs:
     name: Push images + publish multi-arch manifest
     needs:
       - build-amd64-container
-      - build-arm-container
+      - build-arm64-container
     runs-on: ubuntu-latest
     env:
       DOCKERHUB_REPO: wihobbs
