@@ -39,13 +39,10 @@ jobs:
           set -euo pipefail
           mkdir -p out
           docker buildx build \
-            -o type=docker,dest=out/testenv-${{ inputs.distro }}-amd64 \
+            -o type=docker,dest=out/testenv-${{ inputs.distro }}-amd64.tar \
             --platform=linux/amd64 \
             --tag $DOCKERHUB_REPO/testenv:${{ inputs.distro }}-amd64 \
             -f src/test/docker/${{ inputs.distro }}/Dockerfile .
-          ls out
-          ls
-          docker images
 
       - name: Upload amd64 container tarball
         uses: actions/upload-artifact@v4
@@ -74,13 +71,10 @@ jobs:
           set -euo pipefail
           mkdir -p out
           docker buildx build \
-            -o type=docker,dest=out/testenv-${{ inputs.distro }}-arm64 \
+            -o type=docker,dest=out/testenv-${{ inputs.distro }}-arm64.tar \
             --platform=linux/arm64 \
             --tag $DOCKERHUB_REPO/testenv:${{ inputs.distro }}-arm64 \
             -f src/test/docker/${{ inputs.distro }}/Dockerfile .
-          ls out
-          ls
-          docker images
 
       - name: Upload arm64 container tarball
         uses: actions/upload-artifact@v4
@@ -112,13 +106,13 @@ jobs:
       - name: Download amd64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: testenv-${{ inputs.distro }}-amd64
+          name: testenv-${{ inputs.distro }}-amd64.tar
           path: artifacts
 
       - name: Download arm64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: testenv-${{ inputs.distro }}-arm64
+          name: testenv-${{ inputs.distro }}-arm64.tar
           path: artifacts
 
       - name: Load images from tarballs
