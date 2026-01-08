@@ -106,13 +106,13 @@ jobs:
       - name: Download amd64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: testenv-${{ inputs.distro }}-amd64.tar
+          name: testenv-${{ inputs.distro }}-amd64
           path: artifacts
 
       - name: Download arm64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: testenv-${{ inputs.distro }}-arm64.tar
+          name: testenv-${{ inputs.distro }}-arm64
           path: artifacts
 
       - name: Load images from tarballs
