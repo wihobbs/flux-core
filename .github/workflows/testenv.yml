@@ -22,6 +22,8 @@ jobs:
   build-amd64-container:
     name: build new testenv container for amd64
     runs-on: ubuntu-latest
+    env: 
+      DOCKERHUB_REPO: wihobbs
     outputs:
       image_digest: ${{ steps.digest.outputs.digest }}
     steps:
@@ -52,6 +54,8 @@ jobs:
   build-arm64-container:
     name: build new testenv container for arm64
     runs-on: ubuntu-24.04-arm
+    env: 
+      DOCKERHUB_REPO: wihobbs
     outputs:
       image_digest: ${{ steps.digest.outputs.digest }}
     steps:
