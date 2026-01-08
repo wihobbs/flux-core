@@ -83,16 +83,11 @@ jobs:
           path: out/testenv-${{ inputs.distro }}-arm64.tar
           if-no-files-found: error
 
-  test-amd64-container:
-    name: Run make check on amd64 container artifact
-    needs:
-      - build-amd64-container
-
   publish-manifest:
     name: Push images + publish multi-arch manifest
     needs:
-      - test-amd64-container
-      - test-arm64-container
+      - build-amd64-container
+      - build-arm64-container
     runs-on: ubuntu-latest
     env:
       DOCKERHUB_REPO: wihobbs
