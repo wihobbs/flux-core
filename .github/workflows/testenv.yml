@@ -83,11 +83,16 @@ jobs:
           path: out/testenv-${{ inputs.distro }}-arm64.tar
           if-no-files-found: error
 
+  test-amd64-container:
+    name: Run make check on amd64 container artifact
+    needs:
+      - build-amd64-container
+
   publish-manifest:
     name: Push images + publish multi-arch manifest
     needs:
-      - build-amd64-container
-      - build-arm64-container
+      - test-amd64-container
+      - test-arm64-container
     runs-on: ubuntu-latest
     env:
       DOCKERHUB_REPO: wihobbs
@@ -123,15 +128,15 @@ jobs:
           docker images | head -n 50
 
       # Push arch-specific tags first
-#       - name: Push per-arch tags
-#         run: |
-#           set -euo pipefail
-#           AMD_TAG="${DOCKERHUB_REPO}/testenv:${{ inputs.distro }}-amd64"
-#           ARM_TAG="${DOCKERHUB_REPO}/testenv:${{ inputs.distro }}-arm64"
-# 
-#           docker push "${AMD_TAG}"
-#           docker push "${ARM_TAG}"
-# 
+      - name: Push per-arch tags
+        run: |
+          set -euo pipefail
+          AMD_TAG="${DOCKERHUB_REPO}/testenv:${{ inputs.distro }}-amd64"
+          ARM_TAG="${DOCKERHUB_REPO}/testenv:${{ inputs.distro }}-arm64"
+
+          docker push "${AMD_TAG}"
+          docker push "${ARM_TAG}"
+
       # Then create the multi-arch manifest that points at the per-arch tags
       - name: Create and push manifest
         run: |
