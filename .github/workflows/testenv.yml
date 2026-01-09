@@ -23,7 +23,7 @@ jobs:
     name: build new testenv container for amd64
     runs-on: ubuntu-latest
     env: 
-      DOCKERHUB_REPO: wihobbs
+      DOCKERHUB_REPO: fluxrm
     outputs:
       image_digest: ${{ steps.digest.outputs.digest }}
     steps:
@@ -83,10 +83,33 @@ jobs:
           path: out/testenv-${{ inputs.distro }}-arm64.tar
           if-no-files-found: error
 
+  test-amd64-container:
+    name: Run make check on amd64 container artifact
+    needs:
+      - build-amd64-container
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Download amd64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: testenv-${{ inputs.distro }}-amd64
+
+      - name: Load images from tarballs
+        run: |
+          set -euo pipefail
+          docker load -i artifacts/testenv-${{ inputs.distro }}-amd64.tar
+          docker images | head -n 50
+
+      - name: Run make check with docker 
+        run: src/test/docker/docker-run-checks.sh --image=${{ inputs.distro }} -j 4
+
   publish-manifest:
     name: Push images + publish multi-arch manifest
     needs:
-      - build-amd64-container
+      - test-amd64-container
       - build-arm64-container
     runs-on: ubuntu-latest
     env:
