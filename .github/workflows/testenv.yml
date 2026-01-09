@@ -105,7 +105,7 @@ jobs:
           docker images | head -n 50
 
       - name: Run make check with docker 
-        run: src/test/docker/docker-run-checks.sh --image=${{ inputs.distro }} -j 4
+        run: src/test/docker/docker-run-checks.sh --image=${{ inputs.distro }}-amd64 -j 4
 
   publish-manifest:
     name: Push images + publish multi-arch manifest
