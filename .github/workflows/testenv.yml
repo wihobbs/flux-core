@@ -96,6 +96,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: testenv-${{ inputs.distro }}-amd64
+          path: artifacts
 
       - name: Load images from tarballs
         run: |
