@@ -134,6 +134,27 @@ jobs:
       if: ${{ !cancelled() && runner.debug }}
       uses: mxschmitt/action-tmate@v3
 
+  rebuild-testenv:
+    name: Check for changes to testenv docker containers
+    runs-on: ubuntu-latest
+    outputs:
+      testenv-changes: ${{ steps.changes.outputs.changes }}
+    steps:
+    - uses: actions/checkout@v4
+      if: ${{ github.event_name == 'push' || github.event_name == 'merge_group' }}
+      with: 
+        fetch-depth: 0
+    - uses: dorny/paths-filter@v3.0.2
+      id: changes
+      with: 
+        # For merge group events, compare against the target branch (main)
+        base: ${{ github.event_name == 'merge_group' && github.event.merge_group.base_ref || '' }}
+        # For merge group events, use the merge group head ref
+        ref: ${{ github.event_name == 'merge_group' && github.event.merge_group.head_sha || github.ref }}
+        filters: | 
+          testenv:
+          - src/test/docker/**/Dockerfile
+
   generate-matrix:
     # https://stackoverflow.com/questions/59977364
     name: Generate build matrix
