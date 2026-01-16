@@ -90,6 +90,7 @@ jobs:
 
   test-amd64-container:
     name: test new testenv container for amd64
+    needs: build-amd64-container
     runs-on: ubuntu-latest
     env: 
       DOCKERHUB_REPO: fluxrm
