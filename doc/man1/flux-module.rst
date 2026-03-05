@@ -54,6 +54,13 @@ module-exec (.so*)
   An alternate way to load traditional dynamic shared objects, with more
   isolation than direct broker loading.
 
+module-python-exec (.py)
+  Loads Python broker modules.  The Python file must define a
+  :func:`mod_main` function, which is called with a :class:`flux.Flux`
+  handle and any module arguments passed at load time.  The
+  :class:`flux.brokermod.BrokerModule` base class simplifies writing
+  Python broker modules with decorator-based handler registration.
+
 A small number of modules that are integral to the broker are automatically
 loaded early in broker start-up.  Although hard-wired to a particular name
 and compiled into the broker executable, these modules otherwise behave
@@ -68,9 +75,10 @@ load
 
 .. program:: flux module load
 
-Load *module*, which may be either the path to a shared object file, including
-the ``.so`` suffix, or the basename of a shared object file on the
-:envvar:`FLUX_MODULE_PATH`, without the suffix.
+Load *module*, which may be the path to a shared object file (including the
+``.so`` suffix), the path to a Python file (including the ``.py`` suffix),
+or the basename of either on the :envvar:`FLUX_MODULE_PATH`, without the
+suffix.
 
 When :program:`flux module load` completes successfully, the new module has
 entered the running state (see LIST OUTPUT below).
@@ -288,7 +296,7 @@ The *list* command displays one line for each unique (as determined by
 SHA1 hash) loaded module.
 
 **Module**
-   The value of the **mod_name** symbol for this module.
+   The module name.
 
 **Idle**
    Idle times are defined as the number of seconds since the module last sent
@@ -305,20 +313,26 @@ SHA1 hash) loaded module.
    displayed in a comma-separated list.
 
 **Path**
-   The full path to the broker module shared object file (only shown with
+   The full path to the broker module file (only shown with
    the **-l, --long** option).
 
 
 MODULE SYMBOLS
 ==============
 
-All Flux modules define the following global symbols:
+C broker modules define the following global symbols:
 
 **const char \*mod_name;**
    A null-terminated string defining the module name.
 
 **int mod_main (void \*context, int argc, char \**argv);**
    An entry function.
+
+Python broker modules define the following function:
+
+**mod_main (h, \*args)**
+   An entry function called with a :class:`flux.Flux` handle and any
+   module arguments.
 
 
 RESOURCES
