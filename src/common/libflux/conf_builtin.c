@@ -73,7 +73,8 @@ static struct builtin builtin_tab[] = {
         .val_installed = FLUXCMDDIR,
         .val_intree = ABS_TOP_BUILDDIR "/src/cmd:" \
                       ABS_TOP_SRCDIR "/src/cmd:" \
-                      ABS_TOP_BUILDDIR "/src/broker",
+                      ABS_TOP_BUILDDIR "/src/broker:" \
+                      ABS_TOP_SRCDIR "/src/broker",
     },
     {
         .key = "connector_path",
