@@ -21,7 +21,7 @@ DESCRIPTION
 
 .. program:: flux module
 
-:program:`flux module` manages dynamically loadable :man1:`flux-broker` modules.
+:program:`flux module` manages :man1:`flux-broker` modules.
 Modules are automatically loaded at Flux instance start up (rc1) and unloaded
 at Flux instance shutdown (rc3) using :man1:`flux-modprobe`, which is
 configured to be aware of module dependencies.  :program:`flux module` is
@@ -42,17 +42,17 @@ tracing.
 
 Broker modules are often implemented as dynamic shared objects loaded
 into broker threads, but they may also be loaded into separate processes.
-This may be necessary for isolation, or to support incompatible programming
-runtime environments.  A *module loader* process assists with loading modules
-as separate processes, establishing communication with the broker, loading
-and executing the module, and communicating with the broker's module
-management framework.  The loader may be inferred from the module file name
-suffix, or specified on the command line.  The following module loaders are
-provided by flux-core:
+This may be necessary for isolation, or to support modules written in
+languages with their own runtime, such as Python.  A *module loader*
+process assists with loading such modules, establishing communication with
+the broker, executing the module, and reporting completion back to the
+broker's module management framework.  The loader is inferred from the
+module file name suffix, or may be specified on the command line.  The
+following module loaders are provided by flux-core:
 
 module-exec (.so*)
-  An alternate way to load traditional dynamic shared objects, with more
-  isolation than direct broker loading.
+  Loads a dynamic shared object as a separate process, providing more
+  isolation than direct broker thread loading.
 
 module-python-exec (.py)
   Loads Python broker modules.  The Python file must define a
