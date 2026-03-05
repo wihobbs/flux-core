@@ -317,18 +317,15 @@ SHA1 hash) loaded module.
    the **-l, --long** option).
 
 
-MODULE SYMBOLS
-==============
+MODULE ENTRY POINT
+==================
 
-C broker modules define the following global symbols:
-
-**const char \*mod_name;**
-   A null-terminated string defining the module name.
+C broker modules define the following entry point:
 
 **int mod_main (void \*context, int argc, char \**argv);**
    An entry function.
 
-Python broker modules define the following function:
+Python broker modules define the following entry point:
 
 **mod_main (h, \*args)**
    An entry function called with a :class:`flux.Flux` handle and any
