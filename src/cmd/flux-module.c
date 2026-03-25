@@ -146,6 +146,9 @@ static struct optparse_option trace_opts[] = {
     { .name = "full", .key = 'f', .has_arg = 0,
       .usage = "Show JSON message payload, if any",
     },
+    { .name = "full-proto", .has_arg = 0,
+      .usage = "Show message protocol block fields (userid, rolemask, etc.)",
+    },
     { .name = "topic", .key = 'T', .has_arg = 1,
       .arginfo = "GLOB",
       .usage = "Filter output by message topic glob",
@@ -1041,11 +1044,12 @@ int cmd_trace (optparse_t *p, int ac, char *av[])
                              "module.trace",
                              FLUX_NODEID_ANY,
                              FLUX_RPC_STREAMING,
-                             "{s:i s:s s:O s:b}",
+                             "{s:i s:s s:O s:b s:b}",
                              "typemask", ctx.match.typemask,
                              "topic_glob", ctx.match.topic_glob,
                              "names", ctx.names,
-                             "full", optparse_hasopt (p, "full") ? 1 : 0)))
+                             "full", optparse_hasopt (p, "full") ? 1 : 0,
+                             "full_proto", optparse_hasopt (p, "full-proto") ? 1 : 0)))
         log_err_exit ("error sending module.trace request");
 
     signal (SIGINT, sighandler);
@@ -1064,9 +1068,10 @@ int cmd_trace (optparse_t *p, int ac, char *av[])
         int errnum = 0;
         const char *errstr = NULL;
         char buf[160];
+        json_t *proto_json = NULL;
 
         if (flux_rpc_get_unpack (f,
-                                 "{s:F s:s s:s s:i s:s s:i s?o s?i s?s}",
+                                 "{s:F s:s s:s s:i s:s s:i s?o s?i s?s s?o}",
                                  "timestamp", &timestamp,
                                  "prefix", &prefix,
                                  "name", &name,
@@ -1075,7 +1080,8 @@ int cmd_trace (optparse_t *p, int ac, char *av[])
                                  "payload_size", &payload_size,
                                  "payload", &payload_json,
                                  "errnum", &errnum,
-                                 "errstr", &errstr) < 0)
+                                 "errstr", &errstr,
+                                 "proto", &proto_json) < 0)
             log_msg_exit ("%s", future_strerror (f, errno));
 
         if (errnum > 0) {
@@ -1113,6 +1119,14 @@ int cmd_trace (optparse_t *p, int ac, char *av[])
             trace_print_human (&ctx, timestamp, type, errnum, buf, payload_str);
         else
             trace_print (&ctx, timestamp, type, errnum, buf, payload_str);
+
+        if (proto_json && !json_is_null (proto_json)) {
+            char *proto_str = json_dumps (proto_json, JSON_INDENT(2));
+            if (proto_str) {
+                printf ("%s\n", proto_str);
+                free (proto_str);
+            }
+        }
         fflush (stdout);
 
         free (payload_tmp_str);
