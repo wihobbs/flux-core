@@ -126,4 +126,54 @@ test_expect_success NO_CHAIN_LINT 'stop background trace' '
 test_expect_success NO_CHAIN_LINT 'resource module trace excludes heartbeat' '
 	test_must_fail grep heartbeat.pulse trace3.out
 '
+
+test_expect_success NO_CHAIN_LINT 'start background trace with --full-proto' '
+	flux module trace --full-proto kvs >trace4.out &
+	echo $! >trace4.pid
+'
+test_expect_success NO_CHAIN_LINT 'send one kvs.ping' '
+	flux ping -c 1 kvs
+'
+test_expect_success NO_CHAIN_LINT 'kvs.ping request/response was captured with --full-proto' '
+	$waitfile -t 60 -c 2 -p kvs.ping trace4.out
+'
+test_expect_success NO_CHAIN_LINT 'proto block contains userid field' '
+	grep -q "\"userid\":" trace4.out
+'
+test_expect_success NO_CHAIN_LINT 'proto block contains rolemask field' '
+	grep -q "\"rolemask\":" trace4.out
+'
+test_expect_success NO_CHAIN_LINT 'proto block contains type field' '
+	grep -q "\"type\":" trace4.out
+'
+test_expect_success NO_CHAIN_LINT 'proto block contains flags field' '
+	grep -q "\"flags\":" trace4.out
+'
+test_expect_success NO_CHAIN_LINT 'proto block contains matchtag field for request/response' '
+	grep -q "\"matchtag\":" trace4.out
+'
+test_expect_success NO_CHAIN_LINT 'proto block contains nodeid field for request' '
+	grep -q "\"nodeid\":" trace4.out
+'
+test_expect_success NO_CHAIN_LINT 'proto block contains errnum field for response' '
+	grep -q "\"errnum\":" trace4.out
+'
+test_expect_success NO_CHAIN_LINT 'stop background trace' '
+	kill -15 $(cat trace4.pid); wait || true
+'
+
+test_expect_success NO_CHAIN_LINT 'start background trace with --full-proto on heartbeat' '
+	flux module trace --full-proto --type=event >trace5.out &
+	echo $! >trace5.pid
+'
+test_expect_success NO_CHAIN_LINT 'heartbeat.pulse event was captured with --full-proto' '
+	$waitfile -t 60 -p heartbeat.pulse trace5.out
+'
+test_expect_success NO_CHAIN_LINT 'proto block contains sequence field for event' '
+	grep -q "\"sequence\":" trace5.out
+'
+test_expect_success NO_CHAIN_LINT 'stop background trace' '
+	kill -15 $(cat trace5.pid); wait || true
+'
+
 test_done
