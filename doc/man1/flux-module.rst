@@ -12,7 +12,7 @@ SYNOPSIS
 | **flux** **module** **list** [*-l*]
 | **flux** **module** **stats** [*-R*] [*--clear*] *name*
 | **flux** **module** **debug** [*--setbit=VAL*] [*--clearbit=VAL*] [*--set=MASK*] [*--clear=MASK*] *name*
-| **flux** **module** **trace** [-f] [*-t TYPE,...*] [-T *topic-glob*] [*name...*]
+| **flux** **module** **trace** [-f] [*--full-proto*] [*-t TYPE,...*] [-T *topic-glob*] [*name...*]
 
 
 
@@ -236,6 +236,11 @@ named modules, or all modules if none are named.
 
    Include JSON payload in output, if any.  Payloads that are not JSON are
    not displayed.
+
+.. option:: --full-proto
+
+   Include message protocol block fields (userid, rolemask, flags, and
+   type-specific fields like nodeid, matchtag, errnum, sequence) in output.
 
 .. option:: -T, --topic=GLOB
 
