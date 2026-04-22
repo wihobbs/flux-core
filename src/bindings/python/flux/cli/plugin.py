@@ -17,7 +17,7 @@ from abc import ABC
 from pydoc import ttypager
 
 from flux.conf_builtin import conf_builtin_get
-from flux.importer import import_path
+from flux.importer import import_path, import_plugins
 
 
 class PluginArgsProxy:
@@ -193,6 +193,9 @@ class CLIPlugin(ABC):  # pragma no cover
 class CLIPluginRegistry:
     """Flux CLI plugin registry helper class"""
 
+    default_plugins = []
+    plugin_namespace = "flux.cli.plugins"
+
     def __init__(self, prog):
         self.prog = prog
         self.plugins = []
@@ -218,7 +221,10 @@ class CLIPluginRegistry:
         """
         Return list of dirs to search for CLI plugins.
 
-        If ``FLUX_CLI_PLUGINPATH_OVERRIDE`` is set, return only those
+        If ``FLUX_CLI_PLUGINPATH_OVERRIDE`` is set to "t", return empty list
+        (only namespaced plugins will be loaded).
+
+        If ``FLUX_CLI_PLUGINPATH_OVERRIDE`` is set to a path, return only those
         paths (system defaults are suppressed entirely).
 
         Otherwise, prepend any paths from ``FLUX_CLI_PLUGINPATH`` to the
@@ -230,6 +236,8 @@ class CLIPluginRegistry:
 
         if "FLUX_CLI_PLUGINPATH_OVERRIDE" in os.environ:
             raw = os.environ["FLUX_CLI_PLUGINPATH_OVERRIDE"]
+            if raw == "t":
+                return []
             return [s for s in raw.split(":") if s and not s.isspace()]
 
         paths = list(builtin_paths)
@@ -243,8 +251,7 @@ class CLIPluginRegistry:
 
         return paths
 
-    def _add_plugins(self, path, program):
-        module = import_path(path)
+    def _add_plugins_from_module(self, module, program, path=None):
         entries = [
             getattr(module, attr) for attr in dir(module) if not attr.startswith("_")
         ]
@@ -257,13 +264,17 @@ class CLIPluginRegistry:
                 and entry != CLIPlugin
             ):
                 plugin = entry(program)
-                plugin.path = path
+                plugin.path = path if path else f"{module.__name__}"
                 self.plugins.append(plugin)
+
+    def _add_plugins(self, path, program):
+        module = import_path(path)
+        self._add_plugins_from_module(module, program, path)
 
     def print_plugins(self):
         """Print all of the plugins loaded by _load_plugins."""
         print("Options provided by plugins:")
-        print(f"  Search path: {':'.join(self.plugindirs)}\n")
+        print(f"  Search path: {':'.join(self.plugindirs)}, {self.plugin_namespace}\n") if self.plugindirs else None
         for plugin in self.plugins:
             print(f"{type(plugin).__name__} loaded from {plugin.path}")
             for option in plugin.options:
@@ -272,9 +283,18 @@ class CLIPluginRegistry:
 
     def _load_plugins(self, program):
         """Load all cli plugins from the standard path"""
+        # First load filesystem plugins from search path
         for plugindir in self.plugindirs:
             for path in glob.glob(f"{plugindir}/*.py"):
                 self._add_plugins(path, program)
+        # Then load builtin plugins unless FLUX_CLI_PLUGINPATH_OVERRIDE is set
+        # to a filesystem path (if it's "t", we still load builtin plugins)
+        override = os.environ.get("FLUX_CLI_PLUGINPATH_OVERRIDE")
+        if override is None or override == "t":
+            packaged = import_plugins(self.plugin_namespace)
+            for name in self.default_plugins:
+                if name in packaged:
+                    self._add_plugins_from_module(packaged[name], program)
         # keep a dictionary of options:plugin so that conflicts can be checked
         option_dests = {}
         # because the plugin list can change due to conflicting options, iterate
