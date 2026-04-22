@@ -17,8 +17,7 @@ dist_cron_DATA = \
 
 nobase_dist_fluxlibexec_SCRIPTS = \
 	modprobe/rc1.py \
-	modprobe/rc3.py \
-	cli/plugins/shape.py
+	modprobe/rc3.py
 
 nobase_dist_fluxdata_DATA = \
 	modprobe/modprobe.toml
