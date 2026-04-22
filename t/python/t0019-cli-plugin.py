@@ -164,6 +164,15 @@ class TestMakeAlias(unittest.TestCase):
         self.assertEqual(alias, {})
 
 
+class TestPackagedPlugins(unittest.TestCase):
+    """CLIPluginRegistry has plugin_namespace and default_plugins attributes."""
+
+    def test_01_plugin_namespace_and_default_plugins_exist(self):
+        # Verify the new attributes exist and have expected types
+        self.assertEqual(CLIPluginRegistry.plugin_namespace, "flux.cli.plugins")
+        self.assertIsInstance(CLIPluginRegistry.default_plugins, list)
+
+
 class TestConflictDetection(unittest.TestCase):
     """CLIPluginRegistry detects dest conflicts at load time."""
 
