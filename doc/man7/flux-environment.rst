@@ -575,15 +575,21 @@ MISCELLANEOUS
    all search paths provided to ``FLUX_CLI_PLUGINPATH``. The default
    system search path is::
 
-     $sysconfdir/cli/plugins:$libexecdir/cli/plugins
+     $sysconfdir/cli/plugins:$libexecdir/cli/plugins:flux.cli.plugins
+
+   ``flux.cli.plugins`` refers to all the plugins in that Python module,
+   which is packaged as a part of flux-core. Its source code is located
+   in ``flux-core/src/bindings/python/flux/cli/plugins``.
 
 .. envvar:: FLUX_CLI_PLUGINPATH_OVERRIDE
 
    Override the entire search path for command-line plugins, including
-   ``$sysconfdir/cli/plugins`` and ``$libexecdir/cli/plugins``. Only a
+   ``$sysconfdir/cli/plugins``, ``$libexecdir/cli/plugins``, and
+   plugins in the ``flux.cli.plugins`` namespace. If _only_ plugins in 
+   the ``flux.cli.plugins`` namespace are desired (as might be
+   useful for testing) set this variable to ``"t"``. Otherwise, only a
    colon-delimited list of paths passed to this variable will be
    observed when this variable is set.
-
 
 .. _sub_command_environment:
 
