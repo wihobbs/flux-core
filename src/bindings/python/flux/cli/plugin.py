@@ -274,7 +274,13 @@ class CLIPluginRegistry:
     def print_plugins(self):
         """Print all of the plugins loaded by _load_plugins."""
         print("Options provided by plugins:")
-        print(f"  Search path: {':'.join(self.plugindirs)}, {self.plugin_namespace}\n") if self.plugindirs else None
+        (
+            print(
+                f"  Search path: {':'.join(self.plugindirs)}, {self.plugin_namespace}\n"
+            )
+            if self.plugindirs
+            else None
+        )
         for plugin in self.plugins:
             print(f"{type(plugin).__name__} loaded from {plugin.path}")
             for option in plugin.options:
