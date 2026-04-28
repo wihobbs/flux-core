@@ -1,7 +1,5 @@
 FROM alpine:3.18
 
-LABEL maintainer="Mark A. Grondona <mgrondona@llnl.gov>"
-
 # Update pkg caches, install latest pkg utils and basics:
 RUN apk add \
     coreutils \
