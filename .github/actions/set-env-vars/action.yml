@@ -1,0 +1,20 @@
+name: 'Set Environment Variables'
+description: 'Parse and set environment variables from workflow input'
+inputs:
+  env-vars:
+    description: 'Environment variables in VAR="value" format'
+    required: false
+    default: ''
+runs:
+  using: 'composite'
+  steps:
+    - name: Set environment variables
+      if: ${{ inputs.env-vars != '' }}
+      shell: bash
+      run: |
+        echo "${{ inputs.env-vars }}" | while IFS= read -r line; do
+          if [ -n "$line" ]; then
+            # Parse VAR="value" format and add to GITHUB_ENV
+            echo "$line" >> $GITHUB_ENV
+          fi
+        done

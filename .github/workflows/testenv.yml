@@ -28,6 +28,10 @@ on:
         required: false
         default: false
         type: boolean
+      env-vars:
+        description: 'Environment variables (one per line: VAR="value")'
+        required: false
+        type: string
 name: rebuild testenv containers using docker buildx
 jobs:
   setup:
@@ -74,6 +78,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6.0.2
 
+      - name: Set environment variables
+        uses: ./.github/actions/set-env-vars
+        with:
+          env-vars: ${{ inputs.env-vars }}
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.0.0
 
@@ -106,6 +115,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
+
+      - name: Set environment variables
+        uses: ./.github/actions/set-env-vars
+        with:
+          env-vars: ${{ inputs.env-vars }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.0.0
@@ -140,6 +154,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
+
+      - name: Set environment variables
+        uses: ./.github/actions/set-env-vars
+        with:
+          env-vars: ${{ inputs.env-vars }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -179,6 +198,11 @@ jobs:
         with:
           fetch-depth: 0
       - run: git fetch --tags || true
+
+      - name: Set environment variables
+        uses: ./.github/actions/set-env-vars
+        with:
+          env-vars: ${{ inputs.env-vars }}
 
       - name: Download amd64 artifact
         uses: actions/download-artifact@v8.0.1
@@ -223,6 +247,11 @@ jobs:
         with:
           fetch-depth: 0
       - run: git fetch --tags || true
+
+      - name: Set environment variables
+        uses: ./.github/actions/set-env-vars
+        with:
+          env-vars: ${{ inputs.env-vars }}
 
       - name: Download arm64 artifact
         uses: actions/download-artifact@v8.0.1
@@ -269,6 +298,11 @@ jobs:
         with:
           fetch-depth: 0
       - run: git fetch --tags || true
+
+      - name: Set environment variables
+        uses: ./.github/actions/set-env-vars
+        with:
+          env-vars: ${{ inputs.env-vars }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
