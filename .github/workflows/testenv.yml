@@ -29,6 +29,11 @@ on:
         default: false
         type: boolean
 name: rebuild testenv containers using docker buildx
+env:
+  DOCKERHUB_REPO: wihobbs
+  DOCKER_USERNAME: wihobbs
+  DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_TRAVISFLUX_TOKEN }}
+  FLUX_TESTS_LOGFILE: t
 jobs:
   setup:
     name: Determine distros to rebuild
@@ -68,8 +73,6 @@ jobs:
         distro: ${{ fromJson(needs.setup.outputs.distros) }}
     timeout-minutes: 90
     runs-on: ubuntu-latest
-    env:
-      DOCKERHUB_REPO: fluxrm
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
@@ -101,8 +104,6 @@ jobs:
         distro: ${{ fromJson(needs.setup.outputs.distros) }}
     timeout-minutes: 90
     runs-on: ubuntu-24.04-arm
-    env:
-      DOCKERHUB_REPO: fluxrm
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
@@ -135,8 +136,6 @@ jobs:
         distro: ['bookworm']
     timeout-minutes: 90
     runs-on: ubuntu-latest
-    env:
-      DOCKERHUB_REPO: fluxrm
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
@@ -172,8 +171,6 @@ jobs:
         distro: ${{ fromJson(needs.setup.outputs.distros) }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    env:
-      DOCKERHUB_REPO: fluxrm
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -209,8 +206,6 @@ jobs:
         distro: ${{ fromJson(needs.setup.outputs.distros) }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
-    env:
-      DOCKERHUB_REPO: fluxrm
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -248,8 +243,6 @@ jobs:
         distro: ['bookworm']
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    env:
-      DOCKERHUB_REPO: fluxrm
     steps:
       - uses: actions/checkout@v6.0.2
         with:
@@ -312,10 +305,6 @@ jobs:
       matrix:
         distro: ${{ fromJson(needs.setup.outputs.distros) }}
     runs-on: ubuntu-latest
-    env:
-      DOCKERHUB_REPO: fluxrm
-      DOCKER_USERNAME: travisflux
-      DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_TRAVISFLUX_TOKEN }}
     steps:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.0.0
