@@ -109,6 +109,7 @@ static struct registered_attr attrtab[] = {
     { "broker.shutdown-warn", ATTR_IMMUTABLE },
     { "broker.shutdown-timeout", ATTR_IMMUTABLE },
     { "broker.cleanup-timeout", 0 },
+    { "broker.unload-builtins-timeout", 0 },
     { "broker.rc1_path", 0 },
     { "broker.rc3_path", 0 },
     { "broker.rc2_none", 0 },
@@ -155,7 +156,7 @@ static struct registered_attr attrtab[] = {
 
     // content
     { "content.backing-module", 0 },
-    { "content.hash", 0 },
+    { "content.hash", ATTR_IMMUTABLE },
     { "content.dump", ATTR_RUNTIME },
     { "content.restore", ATTR_RUNTIME },
 

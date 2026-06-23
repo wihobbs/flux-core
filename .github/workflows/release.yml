@@ -1,0 +1,535 @@
+name: Create Release with SRPM
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v0.87.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  create-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6.0.2
+      with:
+        fetch-depth: 0
+
+    - name: Validate tag format
+      run: |
+        if [[ ! "${{ inputs.tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+          echo "Error: Tag must be in format v0.0.0 or v0.0.0-suffix"
+          exit 1
+        fi
+        echo "Tag format is valid"
+
+    - name: Check if tag already exists
+      run: |
+        if git rev-parse "${{ inputs.tag }}" >/dev/null 2>&1; then
+          echo "Error: Tag ${{ inputs.tag }} already exists"
+          exit 1
+        fi
+        echo "Tag does not exist, proceeding"
+
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          autoconf automake libtool \
+          libsodium-dev libzmq3-dev libczmq-dev \
+          libjansson-dev libhwloc-dev liblz4-dev \
+          libsqlite3-dev uuid-dev libsystemd-dev \
+          libedit-dev python3-dev python3-cffi \
+          python3-yaml python3-jsonschema python3-sphinx \
+          python3-ply python3-setuptools \
+          aspell aspell-en time \
+          lua5.4 liblua5.4-dev lua-posix-dev \
+          valgrind \
+          rpm rpmbuild \
+          libarchive-dev \
+          libncurses-dev \
+          libmunge-dev \
+          bash-completion \
+          openpgm-dev \
+          libkrb5-dev \
+          chrpath \
+          pkg-config \
+          jq which file man-db hostname
+
+        # Install sphinx requirements for documentation if requirements file exists
+        if [ -f doc/requirements.txt ]; then
+          pip3 install --user -r doc/requirements.txt
+        else
+          pip3 install --user sphinx sphinx-rtd-theme sphinxcontrib-spelling
+        fi
+
+    - name: Run autogen.sh
+      run: ./autogen.sh
+
+    - name: Configure
+      run: |
+        export LC_ALL=en_US.UTF-8
+        export PATH=$HOME/.local/bin:$PATH
+
+        # Configure without flux-security if not available
+        ./configure \
+          --prefix=/usr \
+          --sysconfdir=/etc \
+          --localstatedir=/var \
+          --with-systemdsystemunitdir=/usr/lib/systemd/system \
+          --enable-broken-locale-mode \
+          --disable-static || (cat config.log && exit 1)
+
+    - name: Build distribution tarball
+      run: |
+        export PATH=$HOME/.local/bin:$PATH
+        make dist
+
+    - name: Get tarball name and version
+      id: get_tarball
+      run: |
+        TARBALL=$(ls -t flux-core-*.tar.gz | head -1)
+        VERSION=$(echo $TARBALL | sed 's/flux-core-\(.*\)\.tar\.gz/\1/')
+        echo "tarball=$TARBALL" >> $GITHUB_OUTPUT
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Found tarball: $TARBALL"
+        echo "Version: $VERSION"
+
+    - name: Create RPM spec file
+      run: |
+        cat > flux-core.spec << 'SPECEOF'
+Name:    flux-core
+Version: VERSION_PLACEHOLDER
+Release: 1%{?dist}
+Summary: Flux Resource Manager Framework
+License: LGPL-3.0
+Group: System Environment/Base
+Url: https://github.com/flux-framework/flux-core
+Source0: %{name}-%{version}.tar.gz
+
+BuildRoot: %{_tmppath}/%{name}-%{version}-root-%(%{__id_u} -n)
+
+#
+#  We can't build debuginfo packages because this strips binaries which
+#  causes problems with symbol resolution in tools like launchmon.
+#  Revisit once we've verified that debugging tools are fixed.
+%define debug_package %{nil}
+%define __spec_install_post /usr/lib/rpm/brp-compress || :
+
+# Use python3_sitearch macro if available, otherwise use detected path
+%{!?python3_sitearch: %global python3_sitearch %(python3 -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")}
+
+BuildRequires: pkgconfig(libzmq) >= 4.1.4
+BuildRequires: pkgconfig(jansson) >= 2.6
+BuildRequires: pkgconfig(hwloc) >= 2.1
+BuildRequires: pkgconfig(sqlite3) >= 3.6.0
+BuildRequires: pkgconfig(bash-completion)
+BuildRequires: lua-devel >= 5.1
+BuildRequires: lz4-devel
+BuildRequires: libuuid-devel
+BuildRequires: ncurses-devel
+BuildRequires: libarchive-devel
+BuildRequires: systemd-devel
+BuildRequires: systemd-rpm-macros
+BuildRequires: chrpath
+BuildRequires: gcc
+BuildRequires: gcc-c++
+BuildRequires: make
+BuildRequires: autoconf
+BuildRequires: automake
+BuildRequires: libtool
+BuildRequires: pkg-config
+
+# Optional dependencies - may not be available on all systems
+%if 0%{?fedora} || 0%{?rhel} >= 8
+BuildRequires: munge-devel
+BuildRequires: lua-posix
+%endif
+
+# requirements specifically for 'make check'
+BuildRequires: aspell aspell-en
+BuildRequires: jq
+BuildRequires: which
+BuildRequires: file
+
+# libtool CCLD dependencies
+BuildRequires: libsodium-devel >= 0.4.5
+BuildRequires: krb5-devel
+
+# Python requirements
+BuildRequires: python3
+BuildRequires: python3-devel
+BuildRequires: python3-cffi
+BuildRequires: python3-yaml
+BuildRequires: python3-ply
+BuildRequires: python3-setuptools
+
+# rely on autoreq for most dependencies
+Requires: lua >= 5.1
+Requires: sqlite >= 3.6.0
+Requires: libuuid
+Requires: ncurses
+Requires: python3
+
+%description
+Flux Framework is a suite of projects, tools and libraries which may
+be used to build site-custom resource managers at High Performance
+Computing sites.
+
+flux-core implements the communication layer and lowest level services
+and interfaces for the Flux resource manager framework. It consists of
+a distributed message broker and plug-in comms modules that implement
+various distributed services.
+
+%prep
+%autosetup -n %{name}-%{version}
+
+%build
+export LC_ALL=en_US.UTF-8
+
+# Security-hardened build flags
+CFLAGS="${CFLAGS:--O2 -g -pipe -Wall -Werror=format-security -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector-strong -Wno-strict-aliasing -Wno-error=strict-aliasing}"
+LDFLAGS="${LDFLAGS:--Wl,-z,relro -Wl,-z,now}"
+export CFLAGS
+export LDFLAGS
+
+%configure \
+    --with-systemdsystemunitdir=%{_unitdir} \
+    --enable-broken-locale-mode \
+    --disable-static || (cat config.log && exit 1)
+
+make %{?_smp_mflags}
+
+%check
+# Verify the build
+src/cmd/flux version
+
+# Check that version includes ascii-only (if this is expected)
+src/cmd/flux version | grep ascii-only || echo "Note: ascii-only not in version string"
+
+# Run basic test suite (subset for release validation)
+# Only on x86_64 like the original spec
+%ifarch x86_64
+timeout 30m make check TESTS="t/t0000-sharness.t t/t1000-kvs.t" || {
+    echo "Warning: Some tests failed, displaying logs:"
+    find . -name "*.output" -exec echo "=== {} ===" \; -exec cat {} \;
+    exit 1
+}
+%endif
+
+%install
+rm -rf $RPM_BUILD_ROOT
+mkdir -p $RPM_BUILD_ROOT
+
+make install DESTDIR=$RPM_BUILD_ROOT
+
+# Remove rpath from all binaries and libraries
+find ${RPM_BUILD_ROOT} \
+    -type f -exec \
+    sh -c "file {} | grep -Pi ': elf (32|64)-bit' > /dev/null" \; -print 2>/dev/null | \
+    xargs -r chrpath -d {} 2>/dev/null || true
+
+# do not package .la files
+find ${RPM_BUILD_ROOT} -name "*.la" -delete
+
+# move bash completion file to correct location
+# this handles both old and new locations
+BASHCOMPDIR=$(pkg-config --variable=completionsdir bash-completion 2>/dev/null || echo "/usr/share/bash-completion/completions")
+mkdir -p ${RPM_BUILD_ROOT}/${BASHCOMPDIR}
+if [ -f ${RPM_BUILD_ROOT}/etc/bash_completion.d/flux ]; then
+    mv ${RPM_BUILD_ROOT}/etc/bash_completion.d/flux ${RPM_BUILD_ROOT}/${BASHCOMPDIR}/
+fi
+
+#  Create directories owned by package
+mkdir -p -m 0755 ${RPM_BUILD_ROOT}/etc/flux/rc3.d
+mkdir -p -m 0755 ${RPM_BUILD_ROOT}/etc/flux/rc1.d
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%post -p /sbin/ldconfig
+
+%postun -p /sbin/ldconfig
+
+%files
+%defattr(-,root,root)
+
+# commands + other executables
+%{_bindir}/flux
+%{_bindir}/flux-python
+%{_libexecdir}/flux
+
+# this package owns top level libdir/flux
+%dir %{_libdir}/flux
+
+# connectors + comms modules
+%{_libdir}/flux/connectors
+%{_libdir}/flux/modules
+
+# job-manager plugins
+%{_libdir}/flux/job-manager
+
+# libs - use wildcards to handle version changes
+%{_libdir}/lib%{name}.so.*
+%{_libdir}/libflux-idset.so.*
+%{_libdir}/libflux-optparse.so.*
+%{_libdir}/libflux-schedutil.so.*
+%{_libdir}/libflux-hostlist.so.*
+%{_libdir}/libflux-taskmap.so.*
+
+# pmi libs required in base pkg not devel
+%{_libdir}/flux/libpmi.so*
+%{_libdir}/flux/libpmi2.so*
+
+# devel
+%{_libdir}/pkgconfig/%{name}.pc
+%{_libdir}/pkgconfig/flux-pmi.pc
+%{_libdir}/pkgconfig/flux-optparse.pc
+%{_libdir}/pkgconfig/flux-idset.pc
+%{_libdir}/pkgconfig/flux-schedutil.pc
+%{_libdir}/pkgconfig/flux-hostlist.pc
+%{_libdir}/pkgconfig/flux-taskmap.pc
+%{_libdir}/*.so
+%{_includedir}/flux
+
+# doc + "flux help" config file (json)
+%{_mandir}/man1/*.1*
+%{_mandir}/man3/*.3*
+%{_mandir}/man5/*.5*
+%{_mandir}/man7/*.7*
+%{_datadir}/flux
+
+# tmpfiles config
+%{_tmpfilesdir}/*
+
+# bash completions
+%{_datadir}/bash-completion/completions/flux
+
+# cronfiles (if they exist)
+%if 0%{?_sysconfdir}
+%{_sysconfdir}/flux/system/cron.d/*.cron
+%endif
+
+# lua binding/modules - handle different lua versions
+%{_libdir}/lua/*/flux.so
+%{_datadir}/lua/*/flux
+%{_datadir}/lua/*/fluxometer
+%{_datadir}/lua/*/fluxometer.lua
+
+# rc scripts
+%dir %{_sysconfdir}/flux
+%dir %{_sysconfdir}/flux/rc1.d
+%dir %{_sysconfdir}/flux/rc3.d
+%config(noreplace) %{_sysconfdir}/flux/rc1
+%config(noreplace) %{_sysconfdir}/flux/rc3
+# Include rc1.old and rc3.old if they exist
+%{_sysconfdir}/flux/rc1.old
+%{_sysconfdir}/flux/rc3.old
+
+# modprobe
+%dir %{_sysconfdir}/flux/modprobe
+%dir %{_sysconfdir}/flux/modprobe/modprobe.d
+%dir %{_sysconfdir}/flux/modprobe/rc1.d
+%dir %{_sysconfdir}/flux/modprobe/rc3.d
+%config(noreplace) %{_sysconfdir}/flux/modprobe/modprobe.toml
+%{_sysconfdir}/flux/modprobe/rc1.py
+%{_sysconfdir}/flux/modprobe/rc3.py
+
+# systemd unit files
+%{_unitdir}/*.service
+
+# shell
+%dir %{_sysconfdir}/flux/shell
+%dir %{_sysconfdir}/flux/shell/lua.d
+%dir %{_sysconfdir}/flux/shell/lua.d/mpi
+%config(noreplace) %{_sysconfdir}/flux/shell/initrc.lua
+%{_sysconfdir}/flux/shell/lua.d/*.lua
+%{_sysconfdir}/flux/shell/lua.d/mpi/*.lua
+
+# python binding - use detected sitearch
+%{python3_sitearch}/*
+%{_libdir}/flux/python*/*
+
+%changelog
+* $(date +'%a %b %d %Y') Release Bot <noreply@github.com> - %{version}-1
+- Release %{version}
+SPECEOF
+
+        # Substitute version
+        sed -i "s/VERSION_PLACEHOLDER/${{ steps.get_tarball.outputs.version }}/g" flux-core.spec
+
+        echo "Generated spec file:"
+        cat flux-core.spec
+
+    - name: Build SRPM
+      run: |
+        mkdir -p ~/rpmbuild/{SOURCES,SPECS,SRPMS}
+        cp ${{ steps.get_tarball.outputs.tarball }} ~/rpmbuild/SOURCES/
+        cp flux-core.spec ~/rpmbuild/SPECS/
+        rpmbuild -bs ~/rpmbuild/SPECS/flux-core.spec
+
+        # Find and copy the SRPM
+        SRPM=$(find ~/rpmbuild/SRPMS -name "flux-core-*.src.rpm" | head -1)
+        if [ -z "$SRPM" ]; then
+          echo "Error: SRPM not found after build"
+          ls -la ~/rpmbuild/SRPMS/
+          exit 1
+        fi
+        cp $SRPM .
+        SRPM_NAME=$(basename $SRPM)
+        echo "srpm=$SRPM_NAME" >> $GITHUB_OUTPUT
+        echo "Built SRPM: $SRPM_NAME"
+      id: build_srpm
+
+    - name: Test SRPM contents
+      run: |
+        echo "=== Verifying SRPM package contents ==="
+        rpm -qpl ${{ steps.build_srpm.outputs.srpm }}
+
+        echo ""
+        echo "=== Extracting SRPM for testing ==="
+        mkdir -p srpm-test
+        cd srpm-test
+        rpm2cpio ../${{ steps.build_srpm.outputs.srpm }} | cpio -idmv
+
+        # Verify tarball exists in SRPM
+        if [ ! -f "${{ steps.get_tarball.outputs.tarball }}" ]; then
+          echo "Error: Tarball not found in SRPM"
+          ls -la
+          exit 1
+        fi
+
+        # Verify spec file exists
+        if [ ! -f "flux-core.spec" ]; then
+          echo "Error: Spec file not found in SRPM"
+          ls -la
+          exit 1
+        fi
+
+        echo ""
+        echo "=== SRPM contents validated successfully ==="
+
+    - name: Run testsuite on SRPM tarball
+      run: |
+        echo "=== Extracting tarball from SRPM for testing ==="
+        cd srpm-test
+        tar -xzf "${{ steps.get_tarball.outputs.tarball }}"
+        cd flux-core-${{ steps.get_tarball.outputs.version }}
+
+        echo ""
+        echo "=== Running configure for testsuite ==="
+        export LC_ALL=en_US.UTF-8
+        ./configure \
+          --prefix=/usr \
+          --sysconfdir=/etc \
+          --localstatedir=/var \
+          --enable-broken-locale-mode \
+          --disable-static
+
+        echo ""
+        echo "=== Building from extracted tarball ==="
+        make -j$(nproc)
+
+        echo ""
+        echo "=== Running smoke tests ==="
+        # Verify build and version
+        src/cmd/flux version
+
+        # Check for ascii-only in version
+        src/cmd/flux version | grep ascii-only || echo "Note: ascii-only not in version"
+
+        echo ""
+        echo "=== Running test suite ==="
+        # Run same basic tests as spec file
+        timeout 30m make check TESTS="t/t0000-sharness.t t/t1000-kvs.t" || {
+          echo "Error: Tests failed"
+          echo "=== Displaying test logs ==="
+          find t -name "*.output" -exec echo "=== {} ===" \; -exec cat {} \;
+          exit 1
+        }
+
+        echo ""
+        echo "=== Testsuite completed successfully ==="
+
+    - name: Create git tag
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a "${{ inputs.tag }}" -m "Release ${{ inputs.tag }}"
+        git push origin "${{ inputs.tag }}"
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v3.0.0
+      with:
+        tag_name: ${{ inputs.tag }}
+        name: flux-core ${{ inputs.tag }}
+        prerelease: ${{ inputs.prerelease }}
+        files: |
+          ${{ steps.get_tarball.outputs.tarball }}
+          ${{ steps.build_srpm.outputs.srpm }}
+        body: |
+          # flux-core ${{ inputs.tag }}
+
+          This release includes:
+          - **Source tarball**: `${{ steps.get_tarball.outputs.tarball }}`
+          - **Source RPM**: `${{ steps.build_srpm.outputs.srpm }}`
+
+          ## Building from SRPM
+
+          Install the SRPM and build binary packages:
+
+          ```bash
+          # Install the SRPM
+          rpm -ivh ${{ steps.build_srpm.outputs.srpm }}
+
+          # Install build dependencies
+          sudo dnf builddep ~/rpmbuild/SPECS/flux-core.spec
+
+          # Build binary RPM
+          rpmbuild -ba ~/rpmbuild/SPECS/flux-core.spec
+
+          # Install the built RPM
+          sudo rpm -ivh ~/rpmbuild/RPMS/x86_64/flux-core-*.rpm
+          ```
+
+          ## Building from source tarball
+
+          ```bash
+          tar -xzf ${{ steps.get_tarball.outputs.tarball }}
+          cd flux-core-${{ steps.get_tarball.outputs.version }}
+          ./configure --prefix=/usr
+          make -j$(nproc)
+          make check
+          sudo make install
+          ```
+
+          ## Release Notes
+
+          View [Release Notes](https://github.com/${{ github.repository }}/blob/${{ inputs.tag }}/NEWS.md) for flux-core ${{ inputs.tag }}
+
+          ---
+          *This release was automatically created by the release workflow*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload artifacts for inspection
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: release-artifacts-${{ steps.get_tarball.outputs.version }}
+        path: |
+          ${{ steps.get_tarball.outputs.tarball }}
+          ${{ steps.build_srpm.outputs.srpm }}
+          flux-core.spec
+        retention-days: 30

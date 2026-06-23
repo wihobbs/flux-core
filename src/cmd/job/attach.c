@@ -92,6 +92,10 @@ struct optparse_option attach_opts[] = {
     { .name = "debug-emulate", .has_arg = 0, .flags = OPTPARSE_OPT_HIDDEN,
       .usage = "Set MPIR_being_debugged for testing",
     },
+    { .name = "queue-check-interval", .has_arg = 1, .arginfo = "SECONDS",
+      .flags = OPTPARSE_OPT_HIDDEN,
+      .usage = "Set interval to check queue state for testing",
+    },
     OPTPARSE_TABLE_END
 };
 
@@ -145,6 +149,7 @@ struct attach_ctx {
     int prolog_running;
     bool fatal_exception;
     int last_queue_update;
+    int queue_check_interval;
     char *queue;
     bool queue_stopped;
     zlist_t *tail_output;
@@ -200,12 +205,9 @@ void attach_completed_check (struct attach_ctx *ctx)
      * futures so we can exit the reactor */
     if (!ctx->eventlog_watch_count) {
         if (ctx->stdin_rpcs) {
-            flux_future_t *f = zlist_pop (ctx->stdin_rpcs);
-            while (f) {
+            flux_future_t *f;
+            while ((f = zlist_pop (ctx->stdin_rpcs)))
                 flux_future_destroy (f);
-                zlist_remove (ctx->stdin_rpcs, f);
-                f = zlist_pop (ctx->stdin_rpcs);
-            }
         }
         flux_watcher_stop (ctx->sigint_w);
         flux_watcher_stop (ctx->sigtstp_w);
@@ -680,37 +682,60 @@ void attach_output_start (struct attach_ctx *ctx)
 static void valid_or_exit_for_debug (struct attach_ctx *ctx)
 {
     flux_future_t *f = NULL;
-    char *attrs = "[\"state\"]";
+    char *attrs = "[\"state\","
+                   "\"exception_occurred\","
+                   "\"exception_severity\","
+                   "\"exception_type\","
+                   "\"exception_note\"]";
+    int exception_occurred = 0;
+    int exception_severity = -1;
+    const char *exception_type = NULL;
+    const char *exception_note = NULL;
     flux_job_state_t state = FLUX_JOB_STATE_INACTIVE;
 
     if (!(f = flux_job_list_id (ctx->h, ctx->id, attrs)))
         log_err_exit ("flux_job_list_id");
 
-    if (flux_rpc_get_unpack (f, "{s:{s:i}}", "job", "state", &state) < 0)
+    if (flux_rpc_get_unpack (f,
+                             "{s:{s:i s?b s?i s?s s?s}}",
+                             "job",
+                              "state", &state,
+                              "exception_occurred", &exception_occurred,
+                              "exception_severity", &exception_severity,
+                              "exception_type", &exception_type,
+                              "exception_note", &exception_note) < 0)
         log_err_exit ("Invalid job id (%s) for debugging", ctx->jobid);
-
-    flux_future_destroy (f);
 
     if (state != FLUX_JOB_STATE_NEW
         && state != FLUX_JOB_STATE_DEPEND
         && state != FLUX_JOB_STATE_PRIORITY
         && state != FLUX_JOB_STATE_SCHED
         && state != FLUX_JOB_STATE_RUN) {
+        if (exception_occurred && exception_severity == 0)
+            log_msg ("job.exception %s type=%s severity=0 %s",
+                     ctx->jobid,
+                     exception_type ? exception_type : "unknown",
+                     exception_note ? exception_note : "");
         log_msg_exit ("cannot debug job that has finished running");
     }
 
+    flux_future_destroy (f);
     return;
 }
 
 static void attach_setup_stdin (struct attach_ctx *ctx)
 {
     flux_watcher_t *w;
-    int flags = 0;
+    int flags;
 
     if (ctx->readonly)
         return;
 
-    if (!ctx->unbuffered)
+    if (ctx->unbuffered)
+        flags = 0;
+    else if (!isatty (STDIN_FILENO))
+        flags = FBUF_WATCHER_FULL_BUFFER;
+    else
         flags = FBUF_WATCHER_LINE_BUFFER;
 
     /* fbuf_read_watcher_create() requires O_NONBLOCK on
@@ -723,7 +748,7 @@ static void attach_setup_stdin (struct attach_ctx *ctx)
 
     w = fbuf_read_watcher_create (flux_get_reactor (ctx->h),
                                   STDIN_FILENO,
-                                  1 << 20,
+                                  1 << 17,
                                   attach_stdin_cb,
                                   flags,
                                   ctx);
@@ -1101,13 +1126,18 @@ static void fetch_job_queue (struct attach_ctx *ctx)
         flux_future_destroy (f);
 }
 
-static const char *attach_notify_msg (struct attach_ctx *ctx,
-                                      struct attach_event *event)
+/* Get the base status message for the current job state.
+ * Returns a clean message without decorations (e.g., queue info).
+ * This is the "base truth" of what state the job is in.
+ */
+static const char *get_base_status_msg (struct attach_ctx *ctx,
+                                        struct attach_event *event)
 {
     const char *msg;
     int severity;
 
     if (!event) {
+        /* Timer callback - return saved base message */
         msg = ctx->status_msg;
     }
     else if (streq (event->name, "submit")) {
@@ -1161,6 +1191,47 @@ static const char *attach_notify_msg (struct attach_ctx *ctx,
     return msg;
 }
 
+/* Build the full statusline message by adding decorations/annotations
+ * to the base message. Decorations include queue status, etc.
+ *
+ * This function is called on every statusline update and builds a fresh
+ * message, making it easy to add/remove decorations dynamically.
+ *
+ * Returns the decorated message, which may point to buf if decorations
+ * were added, or base_msg if no decorations are needed.
+ */
+static const char *build_statusline_msg (struct attach_ctx *ctx,
+                                         const char *base_msg,
+                                         char *buf,
+                                         size_t buf_size)
+{
+    const char *msg = base_msg;
+
+    /* Add queue stopped annotation if:
+     * 1. The queue is currently stopped
+     * 2. The job is waiting for resources (the relevant state)
+     */
+    if (ctx->queue_stopped
+        && ctx->queue
+        && strstarts (base_msg, "waiting for resources")) {
+        int n = snprintf (buf,
+                         buf_size,
+                         "%s (%s queue stopped)",
+                         base_msg,
+                         ctx->queue);
+        if (n > 0 && n < buf_size)
+            msg = buf;
+    }
+
+    /* Future decorations can be added here, e.g.:
+     * - Dependency information: "waiting for resources (dep: jobid)"
+     * - Priority info: "waiting for resources (priority: 100)"
+     * - Expected start time: "waiting for resources (ETA: 5m)"
+     */
+
+    return msg;
+}
+
 static void attach_notify (struct attach_ctx *ctx,
                            struct attach_event *event,
                            double ts)
@@ -1172,39 +1243,34 @@ static void attach_notify (struct attach_ctx *ctx,
         int dt = ts - ctx->timestamp_zero;
         int width = 80;
         struct winsize w;
-        char buf[64];
-        const char *msg;
+        char buf[128];
+        const char *base_msg;
+        const char *display_msg;
         char *msgcpy;
 
-        if (!(msg = attach_notify_msg (ctx, event)))
+        /* Get the base status message (clean, no decorations) */
+        if (!(base_msg = get_base_status_msg (ctx, event)))
             return;
 
-        if (strstarts (msg, "waiting for resources")) {
-            /*  Fetch job queue so queue status can be checked
-             */
+        /* If waiting for resources, fetch/update queue status periodically */
+        if (strstarts (base_msg, "waiting for resources")) {
+            int last_queue_dt = dt - ctx->last_queue_update;
             if (!ctx->queue) {
                 fetch_job_queue (ctx);
             }
             else if (ctx->last_queue_update <= 0
-                     || (dt - ctx->last_queue_update >= 10)) {
+                     || (last_queue_dt >= ctx->queue_check_interval)) {
                 ctx->last_queue_update = dt;
                 fetch_queue_status (ctx);
             }
-            /*  Amend status if queue is stopped:
-             */
-            if (ctx->queue_stopped) {
-                if (snprintf (buf,
-                              sizeof (buf),
-                              "%s (%s queue stopped)",
-                              msg,
-                              ctx->queue) < sizeof (buf))
-                    msg = buf;
-            }
         }
 
+        /* Build the full display message with decorations */
+        display_msg = build_statusline_msg (ctx, base_msg, buf, sizeof (buf));
+
+        /* Display the statusline if active */
         if (ctx->statusline) {
-            /* Adjust width of status so timer is right justified:
-             */
+            /* Adjust width of status so timer is right justified */
             if (ioctl(0, TIOCGWINSZ, &w) == 0)
                 width = w.ws_col;
             width -= 10 + strlen (ctx->jobid) + 10;
@@ -1213,15 +1279,16 @@ static void attach_notify (struct attach_ctx *ctx,
                      "\rflux-job: %s %-*s %02d:%02d:%02d\r",
                      ctx->jobid,
                      width,
-                     msg,
+                     display_msg,
                      dt/3600,
                      (dt/60) % 60,
                      dt % 60);
         }
 
-        /*  Save current statusline message for future callbacks:
+        /* Save only the base message (no decorations) for future callbacks.
+         * This ensures we always have a clean starting point.
          */
-        if ((msgcpy = strdup (msg))) {
+        if ((msgcpy = strdup (base_msg))) {
             free (ctx->status_msg);
             ctx->status_msg = msgcpy;
         }
@@ -1306,6 +1373,12 @@ void attach_event_continuation (flux_future_t *f, void *arg)
                  note);
 
         ctx->fatal_exception = (severity == 0);
+
+        /*  If this is a fatal exception, stop stdin immediately to avoid
+         *   continuing to send data that will fail.
+         */
+        if (severity == 0 && ctx->stdin_w)
+            flux_watcher_stop (ctx->stdin_w);
 
         /*  If this job has an interactive pty and the pty is not yet attached,
          *   destroy the pty to avoid a potential hang attempting to connect
@@ -1494,6 +1567,9 @@ int cmd_attach (optparse_t *p, int argc, char **argv)
     ctx.p = p;
     ctx.readonly = optparse_hasopt (p, "read-only");
     ctx.unbuffered = optparse_hasopt (p, "unbuffered");
+    ctx.queue_check_interval = optparse_get_int (p,
+                                                 "queue-check-interval",
+                                                 10);
 
     if (optparse_hasopt (p, "stdin-ranks") && ctx.readonly)
         log_msg_exit ("Do not use --stdin-ranks with --read-only");

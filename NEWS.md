@@ -1,3 +1,117 @@
+flux-core version 0.86.0 - 2026-06-03
+-------------------------------------
+
+## New Features
+ * resource: support checkpoint and eventlog truncation (#7594)
+ * cmd: add `flux admin system-scripts` to list status and details of prolog,
+   epilog, and housekeeping configuration (#7640)
+ * broker: add `broker.conf-builtin` RPC (#7642)
+ * python: support namespace package extension via pkgutil (#7633)
+ * python: add optional `output_callback` to `JobWatcher` (#7628)
+ * cmd: fall back to `PATH` when searching for `flux-*` subcommands (#7631)
+ * support launching test Flux instances with fake resources (#7619)
+ * use zeromq zerocopy for message parts >= 64kB (#7613)
+
+## Fixes
+ * shell: limit job input written to the KVS to 10M (#7650)
+ * librlist: fix overzealous GPU duplicate check when loading topology (#7647)
+ * sdexec: avoid error message truncation (#7635)
+ * flux-job: provide exception message for debugged jobs that fail before
+   start (#7638)
+ * kvs: fix memory leak on namespace lookup failure (#7622)
+ * cmd: fix handling of Python subcommands when searching `PATH` (#7636)
+ * python: re-export full stdlib API for flux.utils.dataclasses (#7632)
+ * scheduler: relax `pool_class` subclass check (#7626)
+ * python: JournalConsumer: only set R and jobspec on alloc and submit
+   events (#7630)
+ * librlist: allow missing HostName in hwloc XML (#7629)
+ * improve error messages when sdexec-mapper fails to map cores or GPUs
+   (#7618)
+ * shell: fix potential NULL deref in rexec server shutdown path (#7620)
+ * broker: fix debug logging of module loader pid (#7616)
+ * python: improve handling of the `sort:` prefix in `UtilFormat` (#7602)
+ * python: fix `ply` ImportError (#7591)
+
+## Cleanup
+ * gitignore: many additions throughout (#7614)
+
+## Build/CI/Testsuite/Documentation
+ * doc: update jansson version refs in documentation (#7652)
+ * build: fix missing shebangs and non-executable scripts (#7643)
+ * github: bump the github-actions group with 6 updates (#7648)
+ * doc: remove `-B` as `--broker-opts` short option (#7645)
+ * README: add R&D100 badge (#7641)
+ * .github: conditionally evaluate testenv build strategy (#7639)
+ * .github: add "all" keyword to rebuild all testenv containers in workflow
+   (#7586)
+ * ci: fix push of `flux-core:latest` and `fluxoroma` docker images (#7608)
+ * t: do not use "python" in command similarity test (#7610)
+
+
+flux-core version 0.85.0 - 2026-05-05
+-------------------------------------
+
+## New Features
+ * add CLIPlugin to accept arbitrary R shapes/JSON on the command-line
+   (#7252)
+ * add support for constraining jobs to assigned resources with `sdexec`
+   (#7566, #7581)
+ * sdexec-mapper: scale memory limits from sdexec-properties by allocation
+   ratio (#7585)
+ * add device containment support to IMP exec helper (#7568, #7584)
+ * scheduler: allow pool class to be overridden (#7582)
+ * add `afterstart` job dependency scheme and deprecate `after` (#7571)
+ * python: add logger to BrokerModule class (#7569)
+ * Add support for `flux.cli.plugins` namespace for core-packaged CLI plugins
+   (#7562)
+ * sdexec: add support for AllowedMemoryNodes (#7551)
+ * sdexec: support DeviceAllow and DevicePolicy (#7546)
+ * flux: add similarity check heuristic (#7526)
+
+## Fixes
+ * ensure `flux.job.JobID()` raises exceptions for all invalid jobids (#7600)
+ * modprobe: fix error when both `FLUX_MODPROBE_PATH` and
+   `FLUX_MODPROBE_PATH_APPEND` are set (#7595)
+ * broker: mark `content.hash` broker attribute immutable (#7596)
+ * fix `flux job attach` statusline display when queues are stopped (#7593)
+ * job-manager: fix inappropriate `LOG_ERR` message (#7579)
+ * librlist: fix duplicate GPU detection (#7580)
+ * dependency-after: satisfy `afterany` on job cancellation (#7570)
+ * resource: batch events in initial `resource.journal` responses (#7567)
+ * improve `resource.sched-status` request scalability (#7552)
+ * fix `flux shutdown --gc` (#7564)
+ * fix double-free on jansson `*_new()` failure (#7555)
+ * libflux: fix possible use-after-free (#7547)
+ * resource: allow drain/undrain to work when fake resources exceed instance
+   size (#7548)
+ * libterminus: fix use after free (#7539)
+ * python: fix output sorting with mixed-type fields in commands using the
+   `OutputFormat` class (#7518)
+
+## Cleanup
+ * python: refactor modprobe implementation (#7587)
+ * miscellaneous cleanup of the `CLIPlugin` tests and infrastructure (#7527)
+
+## Build/CI/Testsuite/Documentation
+ * docker: update default flux-security version to v0.15.0 (#7599)
+ * docker: add kernel headers for flux-security (#7574)
+ * docker: fix cgroup delegation in system test container (#7573)
+ * docker: update instructions in README (#7557)
+ * docker: add sanitizers to el10 image (#7541)
+ * docker: fix docker manifest creation on tags (#7534)
+ * ci: add dynamic build timeouts (#7588)
+ * ci: fixes and improvements for testenv workflow (#7576)
+ * ci: separate ASAN options by colon not comma (#7553)
+ * configure: correct invalid description on results (#7563)
+ * build: bump jansson requirement to v2.11 (#7554)
+ * doc: fix empty readthedocs python API pages (#7531)
+ * doc: add systemd integration internals guide (#7545)
+ * doc: fix typo in flux-jobs(1) (#7535)
+ * testsuite: add missing `FLUX_TESTS_LOGFILE` support (#7540)
+ * test: fix additional races in `libflux/test_module.t` (#7524)
+ * t: revert potential job-list reload race fix (#7525)
+
+
 flux-core version 0.84.0 - 2026-04-07
 -------------------------------------
 

@@ -483,6 +483,33 @@ INPUT/OUTPUT
 
     $ flux run --input=/tmp/input.data myapp
 
+.. option:: input.limit=SIZE
+
+  Limit KVS input to *SIZE* bytes. If exceeded, a fatal job exception
+  is raised.
+
+  - *SIZE* format: number with optional SI suffix (k, K, M, G)
+  - Maximum: 32M
+  - Default: 10M
+  - Ignored for file input
+
+  .. code-block:: console
+
+    $ flux run -o input.limit=1M myapp
+
+.. option:: input.batch-timeout=FSD
+
+  Set the KVS input batch-timeout to a time period in Flux Standard Duration.
+  This is the period over which the leader shell collects entries destined
+  for the input eventlog before committing them to the KVS. A longer period
+  results in less load on the KVS, while a shorter period makes input appear
+  sooner after it was written by :command:`flux job attach`. The
+  default is 0.5s. EOF is always flushed immediately regardless of this setting.
+
+  .. code-block:: console
+
+   $ flux run -o input.batch-timeout=0.01 myapp
+
 .. option:: output.batch-timeout=FSD
 
   Set the KVS output batch-timeout to a time period in Flux Standard Duration.

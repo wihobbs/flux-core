@@ -31,8 +31,7 @@ T_LOG_DRIVER = env AM_TAP_AWK='$(AWK)' $(SHELL) \
 	$(top_srcdir)/config/tap-driver.sh
 PY_LOG_DRIVER = $(PYTHON) $(top_srcdir)/config/tap-driver.py
 
-lua_SCRIPTS = \
-	fluxometer.lua
+lua_DATA = fluxometer.lua
 
 install-data-local:
 	$(INSTALL) -m644 fluxometer/conf.lua.installed \
@@ -93,6 +92,7 @@ TESTSCRIPTS = \
 	t0025-broker-state-machine.t \
 	t0027-broker-groups.t \
 	t0040-flux-sproc.t \
+	t0041-broker-conf-builtin.t \
 	t0013-config-file.t \
 	t0014-runlevel.t \
 	t0015-cron.t \
@@ -106,7 +106,9 @@ TESTSCRIPTS = \
 	t0023-jobspec1-validate.t \
 	t0024-jjc-reader.t \
 	t0026-flux-R.t \
+	t0042-rhwloc-gpu-dedup.t \
 	t0090-content-enospc.t \
+	t0099-admin-system-scripts.t \
 	t0100-modprobe.t \
 	t0800-completion.t \
 	t1000-kvs.t \
@@ -198,6 +200,7 @@ TESTSCRIPTS = \
 	t2316-resource-rediscover.t \
 	t2317-resource-shrink.t \
 	t2318-resource-verify.t \
+	t2319-resource-history.t \
 	t2350-resource-list.t \
 	t2351-resource-status-input.t \
 	t2352-resource-cmd-config.t \
@@ -220,6 +223,7 @@ TESTSCRIPTS = \
 	t2414-imp-exec-helper.t \
 	t2415-sdexec-device.t \
 	t2416-sdexec-constrain-resources.t \
+	t2417-job-exec-shell-exit.t \
 	t2500-job-attach.t \
 	t2501-job-status.t \
 	t2600-job-shell-rcalc.t \
@@ -293,6 +297,7 @@ TESTSCRIPTS = \
 	t3400-overlay-trace.t \
 	t3401-module-trace.t \
 	t4100-slurm-expiration-sync.t \
+	t6010-fake-resources.t \
 	lua/t0001-send-recv.t \
 	lua/t0002-rpc.t \
 	lua/t0003-events.t \
@@ -343,8 +348,10 @@ TESTSCRIPTS = \
 	python/t0043-sdexec-map.py \
 	python/t0043-scheduler-pool.py \
 	python/t0045-job-shape-parser.py \
+	python/t0046-job-watcher.py \
 	python/t0100-modprobe.py \
-	python/t1000-service-add-remove.py
+	python/t1000-service-add-remove.py \
+	python/t6010-fake-resources.py
 
 if HAVE_FLUX_SECURITY
 TESTSCRIPTS += python/t0009-security.py
@@ -582,6 +589,10 @@ check_LTLIBRARIES = \
 dist_check_DATA = \
 	hwloc-data/sierra.xml \
 	hwloc-data/corona.xml \
+	hwloc-data/ipa20.xml \
+	hwloc-data/tuo.SPX.xml \
+	hwloc-data/tuo.TPX.xml \
+	hwloc-data/tuo.CPX.xml \
 	valgrind/valgrind.supp
 
 test_ldadd = \

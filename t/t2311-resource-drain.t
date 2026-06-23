@@ -160,7 +160,7 @@ test_expect_success 'drain works with idset' '
 
 test_expect_success 'reload resource module to simulate instance restart' '
 	flux module remove sched-simple &&
-	flux module reload resource noverify &&
+	flux module reload resource noverify notruncate &&
 	waitdown 0 &&
 	flux module load sched-simple
 '
@@ -205,7 +205,7 @@ test_expect_success 'final undrain event has a reason' '
 '
 test_expect_success 'reload resource module to simulate instance restart' '
 	flux module remove sched-simple &&
-	flux module reload resource noverify &&
+	flux module reload resource noverify notruncate &&
 	waitdown 0 &&
 	flux module load sched-simple
 '
@@ -221,7 +221,7 @@ test_expect_success 'reload resource module with one node excluded' '
 	flux module remove sched-simple &&
 	flux module remove resource &&
 	echo "resource.exclude = \"0\"" | flux config load &&
-	flux module load resource noverify &&
+	flux module load resource noverify notruncate &&
 	waitdown 0 &&
 	flux module load sched-simple
 '
@@ -248,7 +248,7 @@ test_expect_success 'reload resource module with no nodes excluded' '
 	flux module remove sched-simple &&
 	flux module remove resource &&
 	echo "resource.exclude = \"\"" | flux config load &&
-	flux module load resource noverify &&
+	flux module load resource noverify notruncate &&
 	waitdown 0 &&
 	flux module load sched-simple
 '
@@ -264,7 +264,7 @@ test_expect_success 'drained rank subsequently excluded is ignored' '
 	flux module remove sched-simple &&
 	flux module remove resource &&
 	echo resource.exclude = \"1\" | flux config load &&
-	flux module load resource noverify &&
+	flux module load resource noverify notruncate &&
 	waitdown 0 &&
 	flux module load sched-simple &&
 	test $(flux resource status -s drain -no {nnodes}) -eq 0 &&
@@ -275,7 +275,7 @@ test_expect_success 'reload resource module with no nodes excluded' '
 	flux module remove sched-simple &&
 	flux module remove resource &&
 	echo "resource.exclude = \"\"" | flux config load &&
-	flux module load resource noverify &&
+	flux module load resource noverify notruncate &&
 	waitdown 0 &&
 	flux module load sched-simple
 '
@@ -417,6 +417,12 @@ test_expect_success 'flux resource drain works without scheduler loaded' '
 	test $(flux resource status -s drain -no {nnodes}) -eq 1
 '
 
+#
+# N.B. in many of the tests below we overwrite the resource.eventlog
+# to test specific corner cases.  Remove the resource checkpoint so we isolate
+# testing to just the resource eventlog.
+#
+
 test_expect_success 'resource can replay eventlog with pre v0.62 events' '
 	flux kvs put --raw resource.eventlog=- <<-EOT &&
 	{"timestamp":1713893408.8647039,"name":"resource-init","context":{"restart":false,"drain":{},"online":"","exclude":""}}
@@ -431,7 +437,9 @@ test_expect_success 'resource can replay eventlog with pre v0.62 events' '
 	{"timestamp":1713906351.000000,"name":"drain","context":{"idset":"2","reason":"underwear","overwrite":1}}
 	{"timestamp":1713906369.9485908,"name":"resource-init","context":{"restart":true,"drain":{"2":{"timestamp":1713906351.000000,"reason":"underwear"}},"online":"","exclude":""}}
 	EOT
-	flux module reload resource noverify
+	flux module remove resource &&
+	flux kvs unlink -f checkpoint.resource &&
+	flux module load resource noverify
 '
 test_expect_success 'nodes drained in old eventlog are drained after replay' '
 	flux resource drain -n -o "{ranks} {reason}" >legacydrain.out &&
@@ -445,7 +453,9 @@ test_expect_success 'resource can replay eventlog with bad ranks' '
 	flux kvs put --raw resource.eventlog=- <<-EOT &&
 	{"timestamp":1713906351.000000,"name":"drain","context":{"idset":"42","nodelist":"fake42","reason":"","overwrite":0}}
 	EOT
-	flux module reload resource noverify
+	flux module remove resource &&
+	flux kvs unlink -f checkpoint.resource &&
+	flux module load resource noverify
 '
 
 test_expect_success 'no nodes are drained after replay' '
@@ -456,7 +466,9 @@ test_expect_success 'reload resource with two nodes drained' '
 	flux kvs put --raw resource.eventlog=- <<-EOT &&
 	{"timestamp":1713906350.984611,"name":"drain","context":{"idset":"1-2","nodelist":"fake[1-2]","reason":"uvula","overwrite":0}}
 	EOT
-	flux module reload resource noverify
+	flux module remove resource &&
+	flux kvs unlink -f checkpoint.resource &&
+	flux module load resource noverify
 '
 
 test_expect_success 'the correct two nodes are drained after replay' '
@@ -471,7 +483,9 @@ test_expect_success 'reload resource with two nodes remapped' '
 	flux kvs put --raw resource.eventlog=- <<-EOT &&
 	{"timestamp":1713906350.984611,"name":"drain","context":{"idset":"1-2","nodelist":"fake[2-3]","reason":"uvula","overwrite":0}}
 	EOT
-	flux module reload resource noverify
+	flux module remove resource &&
+	flux kvs unlink -f checkpoint.resource &&
+	flux module load resource noverify
 '
 
 test_expect_success 'the remapped nodes are drained after replay' '
@@ -486,7 +500,9 @@ test_expect_success 'reload resource with two nodes remapped, one bad host' '
 	flux kvs put --raw resource.eventlog=- <<-EOT &&
 	{"timestamp":1713906350.984611,"name":"drain","context":{"idset":"1-2","nodelist":"fake[3-4]","reason":"uvula","overwrite":0}}
 	EOT
-	flux module reload resource noverify
+	flux module remove resource &&
+	flux kvs unlink -f checkpoint.resource &&
+	flux module load resource noverify
 '
 
 test_expect_success 'the remapped nodes are drained after replay' '
@@ -499,6 +515,7 @@ test_expect_success 'the remapped nodes are drained after replay' '
 
 test_expect_success 'a malformed event in the eventlog prevents loading' '
 	flux module remove -f resource &&
+	flux kvs unlink -f checkpoint.resource &&
 	flux kvs put --raw resource.eventlog=- <<-EOT &&
 	{}
 	EOT
@@ -506,6 +523,7 @@ test_expect_success 'a malformed event in the eventlog prevents loading' '
 '
 test_expect_success 'a malformed drain context in the eventlog prevents loading' '
 	flux module remove -f resource &&
+	flux kvs unlink -f checkpoint.resource &&
 	flux kvs put --raw resource.eventlog=- <<-EOT &&
 	{"timestamp":1713906350.984611,"name":"drain","context":{}}
 	EOT
@@ -513,6 +531,7 @@ test_expect_success 'a malformed drain context in the eventlog prevents loading'
 '
 test_expect_success 'a malformed undrain context in the eventlog fails' '
 	flux module remove -f resource &&
+	flux kvs unlink -f checkpoint.resource &&
 	flux kvs put --raw resource.eventlog=- <<-EOT &&
 	{"timestamp":1713906350.984611,"name":"undrain","context":{}}
 	EOT
@@ -533,14 +552,73 @@ test_expect_success 'drain works when fake resources outnumber actual brokers' '
 	chmod +x test-drain.sh &&
 	flux start --test-size=1 -Shostlist=fake[0-99] ./test-drain.sh
 '
-test_expect_success '' '
+test_expect_success 'reset test by clearing resource info' '
 	flux module remove -f resource &&
+	flux kvs unlink -f checkpoint.resource &&
 	flux kvs unlink resource.eventlog &&
 	flux module load resource noverify
 '
 
 test_expect_success 'load scheduler' '
 	flux module load sched-simple
+'
+
+# Tests for issue #7590: sort key parsing with commas in format string
+test_expect_success 'drain two nodes with different reasons for sorting tests' '
+	flux resource drain 0 aardvark &&
+	flux resource drain 1 zebra
+'
+test_expect_success 'flux resource drain: sort keys work with comma in format (issue #7590)' '
+	flux resource drain -n -o "sort:reason {reason},{nodelist}" \
+		>drain-sort-comma.out &&
+	test_debug "cat drain-sort-comma.out" &&
+	cat >drain-sort-comma.exp <<-EOT &&
+	aardvark,fake0
+	zebra,fake1
+	EOT
+	test_cmp drain-sort-comma.exp drain-sort-comma.out
+'
+test_expect_success 'flux resource drain: multiple spaces after sort: preserved in output' '
+	flux resource drain -n -o "sort:reason  {reason} {nodelist}" \
+		>drain-sort-spaces.out &&
+	test_debug "cat drain-sort-spaces.out" &&
+	cat >drain-sort-spaces.exp <<-EOT &&
+	 aardvark fake0
+	 zebra fake1
+	EOT
+	test_cmp drain-sort-spaces.exp drain-sort-spaces.out
+'
+test_expect_success 'flux resource drain: tab after sort: preserved in output' '
+	flux resource drain -n -o "sort:reason	{reason} {nodelist}" \
+		>drain-sort-tab.out &&
+	test_debug "cat drain-sort-tab.out" &&
+	printf "\taardvark fake0\n\tzebra fake1\n" >drain-sort-tab.exp &&
+	test_cmp drain-sort-tab.exp drain-sort-tab.out
+'
+test_expect_success \
+'flux resource drain: other characters after sort: preserved in output' '
+	flux resource drain -n -o "sort:reason == {reason},{nodelist}" \
+		>drain-sort-other.out &&
+	test_debug "cat drain-sort-other.out" &&
+	cat <<-EOF >drain-sort-other.exp &&
+	== aardvark,fake0
+	== zebra,fake1
+	EOF
+	test_cmp drain-sort-other.exp drain-sort-other.out
+'
+test_expect_success \
+'flux resource drain: reverse sort works with comma in format' '
+	flux resource drain -n -o "sort:-reason {reason},{nodelist}" \
+		>drain-rsort-comma.out &&
+	test_debug "cat drain-rsort-comma.out" &&
+	cat >drain-rsort-comma.exp <<-EOT &&
+	zebra,fake1
+	aardvark,fake0
+	EOT
+	test_cmp drain-rsort-comma.exp drain-rsort-comma.out
+'
+test_expect_success 'undrain nodes for cleanup' '
+	flux resource undrain 0-1
 '
 
 test_done

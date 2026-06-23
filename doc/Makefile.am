@@ -38,6 +38,7 @@ MAN1_FILES_PRIMARY = \
 	man1/flux-run.1 \
 	man1/flux-bulksubmit.1 \
 	man1/flux-alloc.1 \
+	man1/flux-admin.1 \
 	man1/flux-batch.1 \
 	man1/flux-multi-prog.1 \
 	man1/flux-job.1 \
@@ -390,7 +391,8 @@ MAN5_FILES_PRIMARY = \
 	man5/flux-config-kvs.5 \
 	man5/flux-config-policy.5 \
 	man5/flux-config-queues.5 \
-	man5/flux-config-heartbeat.5
+	man5/flux-config-heartbeat.5 \
+	man5/flux-config-fake-resources.5
 
 
 MAN7_FILES = $(MAN7_FILES_PRIMARY)

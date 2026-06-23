@@ -23,6 +23,7 @@
 #include "ccan/str/str.h"
 #include "src/common/libutil/read_all.h"
 #include "src/common/libutil/errno_safe.h"
+#include "src/common/libutil/errprintf.h"
 
 #include "rnode.h"
 #include "rlist.h"
@@ -256,43 +257,71 @@ char *rhwloc_local_topology_xml (rhwloc_flags_t rflags)
 
 const char * rhwloc_hostname (hwloc_topology_t topo)
 {
+    static char hostname[_POSIX_HOST_NAME_MAX + 1];
+    const char *name;
     int depth = hwloc_get_type_depth (topo, HWLOC_OBJ_MACHINE);
     hwloc_obj_t obj = hwloc_get_obj_by_depth (topo, depth, 0);
-    if (obj)
-        return hwloc_obj_get_info_by_name(obj, "HostName");
-    return NULL;
+
+    if (obj && (name = hwloc_obj_get_info_by_name (obj, "HostName")))
+        return name;
+    /* Fall back to local hostname if HostName not available
+     */
+    if (hostname[0] == '\0') {
+        if (gethostname (hostname, sizeof (hostname)) < 0)
+            return NULL;
+        hostname[sizeof (hostname) - 1] = '\0'; // POSIX doesn't guarantee NUL
+    }
+    return hostname;
 }
 
 /*  Return the union of cpusets for the cores in idset string `cores`.
  *  Returns heap-allocated hwloc_cpuset_t, or NULL on error.
  *  Caller must free with hwloc_bitmap_free().
  */
-hwloc_cpuset_t rhwloc_cores_to_cpuset (hwloc_topology_t topo, const char *cores)
+hwloc_cpuset_t rhwloc_cores_to_cpuset (hwloc_topology_t topo,
+                                       const char *cores,
+                                       flux_error_t *errp)
 {
     hwloc_cpuset_t coreset = NULL;
     hwloc_cpuset_t cpuset = NULL;
     int depth;
     int i;
 
-    if (!topo || !cores)
+    if (!topo || !cores) {
+        errprintf (errp, "Invalid argument");
+        errno = EINVAL;
         return NULL;
+    }
 
     if (!(coreset = hwloc_bitmap_alloc ())
-        || !(cpuset = hwloc_bitmap_alloc ()))
+        || !(cpuset = hwloc_bitmap_alloc ())) {
+        errprintf (errp, "Error allocating hwloc bitmaps");
+        errno = ENOMEM;
         goto err;
+    }
 
-    if (hwloc_bitmap_list_sscanf (coreset, cores) < 0)
+    if (hwloc_bitmap_list_sscanf (coreset, cores) < 0) {
+        errprintf (errp, "invalid core ID string: %s", cores);
+        errno = EINVAL;
         goto err;
+    }
 
     depth = hwloc_get_type_depth (topo, HWLOC_OBJ_CORE);
-    if (depth == HWLOC_TYPE_DEPTH_UNKNOWN || depth == HWLOC_TYPE_DEPTH_MULTIPLE)
+    if (depth == HWLOC_TYPE_DEPTH_UNKNOWN
+        || depth == HWLOC_TYPE_DEPTH_MULTIPLE) {
+        errprintf (errp, "hwloc reports invalid depth for Core objects");
+        errno = EINVAL;
         goto err;
+    }
 
     i = hwloc_bitmap_first (coreset);
     while (i >= 0) {
         hwloc_obj_t core = hwloc_get_obj_by_depth (topo, depth, i);
-        if (!core || !core->cpuset)
+        if (!core || !core->cpuset) {
+            errprintf (errp, "core %d not found in node topology", i);
+            errno = ENOENT;
             goto err;
+        }
         hwloc_bitmap_or (cpuset, cpuset, core->cpuset);
         i = hwloc_bitmap_next (coreset, i);
     }
@@ -349,13 +378,25 @@ static bool backend_is_coproc (const char *s)
             || streq (s, "RSMI"));
 }
 
-static bool pcidev_visited (hwloc_obj_t *visited,
-                            int nvisited,
-                            hwloc_obj_t pcidev)
+/*  Structure to track unique GPU identities by PCI device and backend.
+ *  Deduplicates GPUs appearing under multiple backends (e.g., CUDA and
+ *  OpenCL for the same physical NVIDIA GPU), while preserving AMD CPX/TPX
+ *  partitioned GPUs which share a PCI device but are distinct logical GPUs.
+ */
+struct gpu_identity {
+    hwloc_obj_t pcidev;
+    const char *backend;
+};
+
+static bool gpu_identity_visited (struct gpu_identity *visited,
+                                  int nvisited,
+                                  hwloc_obj_t pcidev,
+                                  const char *backend)
 {
-    if (pcidev) {
+    if (pcidev && backend) {
         for (int i = 0; i < nvisited; i++) {
-            if (visited[i] == pcidev)
+            if (visited[i].pcidev == pcidev
+                && !streq (visited[i].backend, backend))
                 return true;
         }
     }
@@ -368,29 +409,43 @@ static bool pcidev_visited (hwloc_obj_t *visited,
  *  there up to rlen entries. Returns the count of unique GPUs.
  */
 static int collect_unique_gpus (hwloc_topology_t topo,
-                                hwloc_obj_t *visited,
+                                struct gpu_identity *visited,
                                 int vlen,
                                 hwloc_obj_t *result,
                                 int rlen)
 {
     int nvisited = 0;
     int count = 0;
+    bool dedup = true;
     hwloc_obj_t obj = NULL;
+
+    /*  Allow disabling deduplication via environment variable as an escape
+     *  hatch in case this logic causes problems in the field.
+     */
+    if (getenv ("FLUX_HWLOC_GPU_NO_DEDUP"))
+        dedup = false;
 
     /*  Manually index GPUs -- os_index does not seem to be valid for
      *  these devices in some cases, and logical index also seems
      *  incorrect (?).
-     *  Ensure GPUs are not counted twice when they appear with multiple
-     *  backends by tracking visited devices by the PCI parent.
+     *  Deduplicate GPUs that appear with multiple backends (e.g., CUDA
+     *  and OpenCL for the same NVIDIA GPU), while preserving AMD partitioned
+     *  GPUs (CPX/TPX) which share a PCI device but have the same backend.
      */
     while ((obj = hwloc_get_next_osdev (topo, obj))) {
         const char *backend = hwloc_obj_get_info_by_name (obj, "Backend");
         hwloc_obj_t pcidev = osdev_get_pcidev (obj);
         if (!backend_is_coproc (backend)
-            || pcidev_visited (visited, nvisited, pcidev))
+            || (dedup && gpu_identity_visited (visited,
+                                               nvisited,
+                                               pcidev,
+                                               backend)))
             continue;
-        if (nvisited < vlen)
-            visited[nvisited++] = pcidev;
+        if (nvisited < vlen) {
+            visited[nvisited].pcidev = pcidev;
+            visited[nvisited].backend = backend;
+            nvisited++;
+        }
         if (result && count < rlen)
             result[count] = obj;
         count++;
@@ -402,7 +457,7 @@ hwloc_obj_t *rhwloc_gpu_objects (hwloc_topology_t topo, int *count_out)
 {
     int n_pci;
     int count = 0;
-    hwloc_obj_t *visited = NULL;
+    struct gpu_identity *visited = NULL;
     hwloc_obj_t *result = NULL;
 
     *count_out = 0;
@@ -410,20 +465,24 @@ hwloc_obj_t *rhwloc_gpu_objects (hwloc_topology_t topo, int *count_out)
     /* Get total count of PCI devices to size the visited array:
      */
     n_pci = hwloc_get_nbobjs_by_type (topo, HWLOC_OBJ_PCI_DEVICE);
-    if (n_pci <= 0 || !(visited = calloc (n_pci, sizeof (*visited))))
+    if (n_pci <= 0) {
+        errno = ENODEV;
+        return NULL;
+    }
+    if (!(visited = calloc (n_pci, sizeof (*visited))))
         return NULL;
 
-    /* Traverse topo first to get count of unique GPUs to size result
+    /* Allocate result for worst case (all PCI devices are GPUs), then
+     * traverse once to collect unique GPUs
      */
-    count = collect_unique_gpus (topo, visited, n_pci, NULL, 0);
-    if (count == 0 || !(result = calloc (count, sizeof (*result))))
+    if (!(result = calloc (n_pci, sizeof (*result))))
         goto out;
-
-    /* Reset visited and traverse again, this time collecting GPUs
-     * in result
-     */
-    memset (visited, 0, n_pci * sizeof (*visited));
-    collect_unique_gpus (topo, visited, n_pci, result, count);
+    count = collect_unique_gpus (topo, visited, n_pci, result, n_pci);
+    if (count == 0) {
+        free (result);
+        result = NULL;
+        goto out;
+    }
     *count_out = count;
 out:
     ERRNO_SAFE_WRAP (free, visited);
@@ -434,7 +493,7 @@ static struct idset *rhwloc_gpu_idset (hwloc_topology_t topo)
 {
     int n_pci;
     int count = 0;
-    hwloc_obj_t *visited = NULL;
+    struct gpu_identity *visited = NULL;
     struct idset *ids = NULL;
 
     /* Count total PCI objects to size visited array:

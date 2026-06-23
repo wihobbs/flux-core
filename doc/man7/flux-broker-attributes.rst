@@ -162,6 +162,11 @@ broker.cleanup-timeout
    rank 0 broker waits for cleanup actions to complete when the broker has
    received a terminating signal.  Default: ``none``.
 
+broker.unload-builtins-timeout
+   The amount of time (in RFC 23 Flux Standard Duration format) that the
+   broker waits for builtin modules to unload during shutdown before giving
+   up and moving on to exit.  Default: ``60s``.
+
 broker.rc1_path
    The command line executed by the broker for rc1.
    Default: ``flux modprobe rc1``.
@@ -425,7 +430,7 @@ content.backing-module
    on rank 0 where the content backing store is active.  Default:
    ``content-sqlite``.
 
-content.hash
+content.hash:ref :`[readonly] <attr_readonly>`
    The selected hash algorithm.  Default ``sha1``.  Other options: ``sha256``.
 
 content.dump
