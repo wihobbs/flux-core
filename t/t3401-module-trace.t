@@ -38,6 +38,10 @@ test_expect_success NO_CHAIN_LINT 'start third background trace with no module n
 	flux module trace --full >trace1b.out &
 	echo $! >trace1b.pid
 '
+test_expect_success NO_CHAIN_LINT 'start fourth background trace with --full --full-proto' '
+	flux module trace --full --full-proto >trace1c.out &
+	echo $! >trace1c.pid
+'
 test_expect_success NO_CHAIN_LINT 'heartbeat.pulse event was captured' '
 	$waitfile -t 60 -p heartbeat.pulse trace.out
 '
@@ -46,6 +50,9 @@ test_expect_success NO_CHAIN_LINT 'heartbeat.pulse event was captured with --ful
 '
 test_expect_success NO_CHAIN_LINT 'heartbeat.pulse event was captured with no module name' '
 	$waitfile -t 60 -p heartbeat.pulse trace1b.out
+'
+test_expect_success NO_CHAIN_LINT 'heartbeat.pulse event was captured with --full --full-proto' '
+	$waitfile -t 60 -p heartbeat.pulse trace1c.out
 '
 test_expect_success NO_CHAIN_LINT 'send one kvs.ping' '
 	flux ping -c 1 kvs
@@ -58,6 +65,9 @@ test_expect_success NO_CHAIN_LINT 'kvs.ping request/response was captured with -
 '
 test_expect_success NO_CHAIN_LINT 'kvs.ping request/response was captured with no module name' '
 	$waitfile -t 60 -c 2 -p kvs.ping trace1b.out
+'
+test_expect_success NO_CHAIN_LINT 'kvs.ping request/response was captured with --full --full-proto' '
+	$waitfile -t 60 -c 2 -p kvs.ping trace1c.out
 '
 # This RPC happens to return a human readable error on failure
 test_expect_success NO_CHAIN_LINT 'send one job-manager.kill (failing)' '
@@ -72,7 +82,13 @@ test_expect_success NO_CHAIN_LINT 'job-manager.kill request/response was capture
 test_expect_success NO_CHAIN_LINT 'job-manager.kill request/response was captured with no module name' '
 	$waitfile -t 60 -c 2 -p "job%-manager.kill" trace1b.out
 '
-
+test_expect_success NO_CHAIN_LINT 'job-manager.kill request/response was captured with --full --full-proto' '
+	$waitfile -t 60 -c 2 -p "job%-manager.kill" trace1c.out
+'
+test_expect_success NO_CHAIN_LINT '--full-proto traces contain protocol block values' '
+	grep -q "userid" trace1c.out &&
+	grep -q "rolemask" trace1c.out
+'
 test_expect_success NO_CHAIN_LINT 'stop background trace' '
 	pid=$(cat trace.pid) &&
 	kill -15 $pid &&
@@ -85,6 +101,11 @@ test_expect_success NO_CHAIN_LINT 'stop second background trace' '
 '
 test_expect_success NO_CHAIN_LINT 'stop third background trace' '
 	pid=$(cat trace1b.pid) &&
+	kill -15 $pid &&
+	wait $pid || true
+'
+test_expect_success NO_CHAIN_LINT 'stop --full-proto background trace' '
+	pid=$(cat trace1c.pid) &&
 	kill -15 $pid &&
 	wait $pid || true
 '
